@@ -189,18 +189,44 @@ class MessageService: ObservableObject {
     
     func searchUsers(query: String) async throws -> [User] {
         return try await withCheckedThrowingContinuation { continuation in
+            // Get all users and filter client-side for better search results
             db.collection("users")
-                .whereField("displayName", isGreaterThanOrEqualTo: query)
-                .whereField("displayName", isLessThan: query + "\u{f8ff}")
-                .limit(to: 10)
+                .limit(to: 50) // Get more users to filter from
                 .getDocuments { snapshot, error in
                     if let error = error {
+                        print("❌ Error searching users: \(error.localizedDescription)")
                         continuation.resume(throwing: error)
                         return
                     }
                     
-                    let users = snapshot?.documents.compactMap { User(from: $0) } ?? []
-                    continuation.resume(returning: users)
+                    guard let documents = snapshot?.documents else {
+                        print("❌ No documents found in users collection")
+                        continuation.resume(returning: [])
+                        return
+                    }
+                    
+                    print("🔍 Found \(documents.count) users in Firestore")
+                    for doc in documents {
+                        print("📄 User document: \(doc.documentID) - \(doc.data())")
+                    }
+                    
+                    let allUsers = documents.compactMap { User(from: $0) }
+                    print("👥 Parsed \(allUsers.count) users successfully")
+                    
+                    // Filter users based on query (case-insensitive)
+                    let filteredUsers = allUsers.filter { user in
+                        let queryLower = query.lowercased()
+                        let matchesDisplayName = user.displayName.lowercased().contains(queryLower)
+                        let matchesEmail = user.email.lowercased().contains(queryLower)
+                        print("🔍 Checking user: \(user.displayName) (\(user.email)) - matches: \(matchesDisplayName || matchesEmail)")
+                        return matchesDisplayName || matchesEmail
+                    }
+                    
+                    print("✅ Found \(filteredUsers.count) matching users for query: '\(query)'")
+                    
+                    // Limit results to 10
+                    let limitedUsers = Array(filteredUsers.prefix(10))
+                    continuation.resume(returning: limitedUsers)
                 }
         }
     }

@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
@@ -38,6 +39,10 @@ struct ProfileView: View {
                         Text(authService.currentUser?.displayName ?? "Unknown User")
                             .font(.title2)
                             .fontWeight(.semibold)
+                            .onAppear {
+                                print("🔍 ProfileView - currentUser: \(authService.currentUser?.displayName ?? "nil")")
+                                print("🔍 ProfileView - isAuthenticated: \(authService.isAuthenticated)")
+                            }
                         
                         Text(authService.currentUser?.email ?? "")
                             .font(.subheadline)
@@ -64,25 +69,73 @@ struct ProfileView: View {
                     
                     Divider()
                     
-                    ProfileOptionRow(
-                        icon: "gear",
-                        title: "Settings",
-                        action: { }
-                    )
+                    NavigationLink(destination: SettingsView()) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "gear")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                                .frame(width: 24)
+                            
+                            Text("Settings")
+                                .font(.body)
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                     
                     Divider()
                     
-                    ProfileOptionRow(
-                        icon: "questionmark.circle",
-                        title: "Help & Support",
-                        action: { }
-                    )
+                    NavigationLink(destination: HelpSupportView()) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "questionmark.circle")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                                .frame(width: 24)
+                            
+                            Text("Help & Support")
+                                .font(.body)
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
                 .background(Color(.systemBackground))
                 .cornerRadius(12)
                 .padding(.horizontal, 16)
                 
                 Spacer()
+                
+                // Debug Button
+                Button(action: { 
+                    if let uid = Auth.auth().currentUser?.uid {
+                        print("🔧 Manual user profile creation for UID: \(uid)")
+                        authService.createUserProfileIfNeeded(uid: uid)
+                    }
+                }) {
+                    Text("Debug: Create User Profile")
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal, 16)
                 
                 // Sign Out Button
                 Button(action: { showingSignOutAlert = true }) {
@@ -224,7 +277,7 @@ struct EditProfileView: View {
                 }
             }
             .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(selectedImage: $selectedImage)
+                CustomImagePicker(selectedImage: $selectedImage)
             }
             .onAppear {
                 displayName = authService.currentUser?.displayName ?? ""
