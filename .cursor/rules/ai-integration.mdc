@@ -1,0 +1,99 @@
+# MessageAI - AI Integration Rules
+
+## AI Integration Architecture
+MessageAI uses direct OpenAI API integration from the iOS client, avoiding Cloud Functions for simplicity and cost-effectiveness.
+
+## Target Personas
+Choose ONE persona for AI feature implementation:
+
+### 1. Remote Team Professional
+**Required AI Features**:
+1. Thread summarization
+2. Action item extraction
+3. Smart search
+4. Priority message detection
+5. Decision tracking
+
+**Advanced Features** (Choose 1):
+- Multi-Step Agent: Plans team offsites, coordinates schedules
+- Proactive Assistant: Auto-suggests meeting times, detects scheduling needs
+
+### 2. International Communicator
+**Required AI Features**:
+1. Real-time translation (inline)
+2. Language detection & auto-translate
+3. Cultural context hints
+4. Formality level adjustment
+5. Slang/idiom explanations
+
+**Advanced Features** (Choose 1):
+- Context-Aware Smart Replies: Learns style in multiple languages
+- Intelligent Processing: Extracts structured data from multilingual conversations
+
+### 3. Busy Parent/Caregiver
+**Required AI Features**:
+1. Smart calendar extraction
+2. Decision summarization
+3. Priority message highlighting
+4. RSVP tracking
+5. Deadline/reminder extraction
+
+**Advanced Features** (Choose 1):
+- Proactive Assistant: Detects scheduling conflicts, suggests solutions
+- Multi-Step Agent: Plans weekend activities based on family preferences
+
+### 4. Content Creator/Influencer
+**Required AI Features**:
+1. Auto-categorization (fan/business/spam/urgent)
+2. Response drafting in creator's voice
+3. FAQ auto-responder
+4. Sentiment analysis
+5. Collaboration opportunity scoring
+
+**Advanced Features** (Choose 1):
+- Context-Aware Smart Replies: Generates authentic replies matching personality
+- Multi-Step Agent: Handles daily DMs, auto-responds to FAQs, flags key messages
+
+## AI Service Implementation
+- **OpenAI API**: Use GPT-4 as primary model
+- **Function Calling**: Implement function calling for tool use
+- **RAG Pipeline**: Retrieve relevant conversation context
+- **Response Caching**: Cache responses to reduce costs
+- **Error Handling**: Graceful degradation when AI fails
+
+## Context Management
+- **Conversation History**: Retrieve last 50 messages for context
+- **Relevance Filtering**: Filter messages by relevance
+- **Prompt Augmentation**: Add context to AI prompts
+- **Response Parsing**: Parse AI responses into structured data
+
+## Performance Optimization
+- **Response Time**: Target <5 seconds for AI responses
+- **Caching**: Cache responses for 1 hour
+- **Background Processing**: Process AI in background
+- **Rate Limiting**: Implement rate limiting for API calls
+
+## Error Handling
+- **API Failures**: Fallback to basic messaging
+- **Rate Limits**: Queue requests and retry
+- **Invalid Responses**: Validate and sanitize responses
+- **Network Issues**: Handle offline scenarios gracefully
+
+## User Experience
+- **Loading States**: Show loading indicators for AI processing
+- **Progressive Enhancement**: AI features enhance, don't replace core functionality
+- **User Control**: Allow users to disable AI features
+- **Transparency**: Show when AI is processing or has processed content
+
+## Security and Privacy
+- **API Key Storage**: Store OpenAI API key securely
+- **Data Privacy**: Don't store sensitive conversation data
+- **User Consent**: Get explicit consent for AI processing
+- **Data Retention**: Implement data retention policies
+
+## Testing Requirements
+- **AI Feature Tests**: Test all 5 required AI features
+- **Advanced Feature Tests**: Test 1 advanced AI capability
+- **Error Scenarios**: Test AI service failures
+- **Performance Tests**: Test AI response times
+- **User Experience Tests**: Test AI user interactions

@@ -1,0 +1,90 @@
+# MessageAI - SwiftUI Patterns
+
+## SwiftUI Architecture
+MessageAI uses SwiftUI with MVVM architecture for clean separation of concerns.
+
+## View Structure
+- **Views**: SwiftUI views for UI components
+- **ViewModels**: ObservableObject classes for state management
+- **Services**: Business logic and data access
+- **Models**: Data structures and business logic
+
+## State Management
+- **@StateObject**: For owned view models
+- **@ObservedObject**: For passed view models
+- **@Published**: For reactive properties
+- **@State**: For local view state
+- **@Binding**: For two-way data binding
+
+## View Composition
+- **Reusable Components**: Create reusable UI components
+- **View Modifiers**: Use custom view modifiers for consistency
+- **View Builders**: Use @ViewBuilder for conditional views
+- **View Extensions**: Extend views with custom functionality
+
+## Navigation Patterns
+- **NavigationView**: Use NavigationView for navigation
+- **NavigationLink**: Use NavigationLink for navigation
+- **Sheet**: Use sheet for modal presentations
+- **Alert**: Use alert for user confirmations
+- **ActionSheet**: Use actionSheet for action menus
+
+## Animation Patterns
+- **Implicit Animations**: Use .animation() modifier
+- **Explicit Animations**: Use withAnimation() for explicit animations
+- **Transition**: Use transition() for view transitions
+- **Spring**: Use spring animations for natural feel
+- **Easing**: Use easing functions for smooth animations
+
+## Data Flow
+- **Top-Down**: Pass data down through view hierarchy
+- **Bottom-Up**: Use callbacks and bindings for data up
+- **Environment**: Use @Environment for shared data
+- **Preference Keys**: Use preference keys for data up
+
+## Error Handling
+- **Error States**: Show error states in UI
+- **Loading States**: Show loading indicators
+- **Empty States**: Show empty state views
+- **Retry Mechanisms**: Provide retry options
+
+## Performance Optimization
+- **Lazy Loading**: Use LazyVStack and LazyHStack
+- **View Updates**: Minimize view updates
+- **State Management**: Use appropriate state management
+- **Memory Management**: Proper cleanup of resources
+
+## Accessibility
+- **Accessibility Labels**: Add accessibility labels
+- **Accessibility Hints**: Add accessibility hints
+- **Accessibility Actions**: Add accessibility actions
+- **VoiceOver**: Ensure VoiceOver compatibility
+- **Dynamic Type**: Support Dynamic Type sizing
+
+## Testing
+- **View Tests**: Test SwiftUI views
+- **ViewModel Tests**: Test view models
+- **Service Tests**: Test services
+- **Integration Tests**: Test complete flows
+- **UI Tests**: Test user interactions
+
+## Common Patterns
+- **List Views**: Use List for data display
+- **Form Views**: Use Form for input forms
+- **Tab Views**: Use TabView for tab navigation
+- **Scroll Views**: Use ScrollView for scrollable content
+- **Grid Views**: Use LazyVGrid for grid layouts
+
+## Custom Components
+- **MessageBubbleView**: Custom message bubble component
+- **TypingIndicatorView**: Custom typing indicator
+- **LoadingView**: Custom loading indicator
+- **EmptyStateView**: Custom empty state view
+- **ErrorView**: Custom error view
+
+## Styling
+- **Color Scheme**: Use consistent color scheme
+- **Typography**: Use consistent typography
+- **Spacing**: Use consistent spacing
+- **Shadows**: Use consistent shadow styles
+- **Borders**: Use consistent border styles

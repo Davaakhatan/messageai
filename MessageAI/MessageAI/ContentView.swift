@@ -1,0 +1,72 @@
+import SwiftUI
+import FirebaseAuth
+
+struct ContentView: View {
+    @EnvironmentObject var authService: AuthService
+    @State private var showingLogin = false
+    
+    var body: some View {
+        Group {
+            if authService.isAuthenticated {
+                MainTabView()
+            } else {
+                LoginView()
+            }
+        }
+        .animation(.easeInOut, value: authService.isAuthenticated)
+    }
+}
+
+struct MainTabView: View {
+    @State private var selectedTab = 0
+    @EnvironmentObject var messageService: MessageService
+    
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            ChatListView()
+                .tabItem {
+                    Image(systemName: selectedTab == 0 ? "message.fill" : "message")
+                    Text("Chats")
+                }
+                .tag(0)
+                .badge(messageService.chats.count)
+            
+            RemoteTeamAIView()
+                .tabItem {
+                    Image(systemName: selectedTab == 1 ? "person.3.fill" : "person.3")
+                    Text("Team AI")
+                }
+                .tag(1)
+            
+            AIAssistantView()
+                .tabItem {
+                    Image(systemName: selectedTab == 2 ? "brain.head.profile.fill" : "brain.head.profile")
+                    Text("AI Assistant")
+                }
+                .tag(2)
+            
+            ProfileView()
+                .tabItem {
+                    Image(systemName: selectedTab == 3 ? "person.circle.fill" : "person.circle")
+                    Text("Profile")
+                }
+                .tag(3)
+        }
+        .accentColor(.blue)
+        .onAppear {
+            // Configure tab bar appearance
+            let appearance = UITabBarAppearance()
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor.systemBackground
+            
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+        }
+    }
+}
+
+#Preview {
+    ContentView()
+        .environmentObject(AuthService())
+        .environmentObject(MessageService())
+}

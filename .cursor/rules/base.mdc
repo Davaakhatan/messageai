@@ -1,0 +1,60 @@
+# MessageAI - Base Project Rules
+
+## Project Overview
+MessageAI is a production-quality cross-platform messaging app with intelligent AI features. The project is currently in the AI integration phase, with core messaging functionality completed and production-ready.
+
+## Architecture Patterns
+- **MVVM Architecture**: Use MVVM pattern with SwiftUI
+- **Repository Pattern**: Implement repository pattern for data access
+- **Service Layer**: Use service classes for business logic
+- **Async/Await**: Prefer modern Swift concurrency over callbacks
+- **Combine Framework**: Use Combine for reactive programming
+
+## Code Standards
+- **Swift 5.9+**: Use modern Swift features
+- **SwiftUI**: Prefer SwiftUI over UIKit
+- **SwiftData**: Use SwiftData for local persistence
+- **Firebase**: Use Firebase for backend services
+- **Error Handling**: Implement comprehensive error handling
+
+## AI Integration Guidelines
+- **Persona-Specific**: Implement AI features based on chosen persona
+- **Context-Aware**: Use conversation context for AI responses
+- **Performance**: Optimize AI response times
+- **Cost Management**: Implement response caching
+- **Error Recovery**: Handle AI service failures gracefully
+
+## UI/UX Standards
+- **WhatsApp-like**: Maintain familiar messaging experience
+- **Real-time**: Ensure instant message delivery
+- **Animations**: Use smooth animations and transitions
+- **Accessibility**: Follow accessibility guidelines
+- **Error States**: Provide clear error messages
+
+## Testing Requirements
+- **Unit Tests**: Test service layer and business logic
+- **Integration Tests**: Test Firebase and AI integrations
+- **UI Tests**: Test user interactions and flows
+- **Performance Tests**: Monitor message delivery times
+- **Error Tests**: Test error handling scenarios
+
+## Performance Targets
+- **Message Delivery**: <2 seconds
+- **Message Persistence**: 100%
+- **Offline Sync**: Flawless
+- **Network Handling**: Graceful degradation
+- **AI Response**: <5 seconds
+
+## Security Requirements
+- **Firebase Rules**: Implement proper security rules
+- **API Keys**: Secure storage of sensitive keys
+- **User Data**: Protect user privacy
+- **Authentication**: Secure user authentication
+- **Data Validation**: Validate all inputs
+
+## Deployment Standards
+- **TestFlight**: Use TestFlight for beta testing
+- **Production**: App Store for production
+- **Monitoring**: Implement error tracking
+- **Analytics**: Track user behavior
+- **Documentation**: Maintain comprehensive docs

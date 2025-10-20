@@ -1,0 +1,221 @@
+import Foundation
+import FirebaseFirestore
+import FirebaseAuth
+import Combine
+//import OpenAI
+
+class MessageService: ObservableObject {
+    @Published var messages: [String: [Message]] = [:]
+    @Published var chats: [Chat] = []
+    @Published var isConnected = false
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    
+    private let db = Firestore.firestore()
+    private var messageListeners: [String: ListenerRegistration] = [:]
+    private var chatListener: ListenerRegistration?
+    
+    init() {
+        // Skip Firebase initialization in preview mode
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+            return
+        }
+        #endif
+        setupConnectionListener()
+    }
+    
+    deinit {
+        removeAllListeners()
+    }
+    
+    private func setupConnectionListener() {
+        db.collection("test").addSnapshotListener { [weak self] _, error in
+            DispatchQueue.main.async {
+                self?.isConnected = error == nil
+            }
+        }
+    }
+    
+    // MARK: - Chat Management
+    
+    func loadChats() {
+        guard let currentUser = Auth.auth().currentUser else { return }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        chatListener = db.collection("chats")
+            .whereField("participants", arrayContains: currentUser.uid)
+            .order(by: "updatedAt", descending: true)
+            .addSnapshotListener { [weak self] snapshot, error in
+                DispatchQueue.main.async {
+                    self?.isLoading = false
+                    
+                    if let error = error {
+                        self?.errorMessage = "Failed to load chats: \(error.localizedDescription)"
+                        return
+                    }
+                    
+                    guard let documents = snapshot?.documents else { return }
+                    
+                    self?.chats = documents.compactMap { Chat(from: $0) }
+                }
+            }
+    }
+    
+    func createChat(with userIds: [String], isGroup: Bool = false, groupName: String? = nil) {
+        guard let currentUser = Auth.auth().currentUser else { return }
+        
+        let participants = [currentUser.uid] + userIds
+        let chat = Chat(
+            participants: participants,
+            isGroup: isGroup,
+            groupName: groupName
+        )
+        
+        db.collection("chats").document(chat.id).setData(chat.toDictionary()) { [weak self] error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    self?.errorMessage = "Failed to create chat: \(error.localizedDescription)"
+                    return
+                }
+                
+                // Reload chats
+                self?.loadChats()
+            }
+        }
+    }
+    
+    // MARK: - Message Management
+    
+    func loadMessages(for chatId: String) {
+        // Remove existing listener for this chat
+        messageListeners[chatId]?.remove()
+        
+        messageListeners[chatId] = db.collection("messages")
+            .whereField("chatId", isEqualTo: chatId)
+            .order(by: "timestamp", descending: false)
+            .addSnapshotListener { [weak self] snapshot, error in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        self?.errorMessage = "Failed to load messages: \(error.localizedDescription)"
+                        return
+                    }
+                    
+                    guard let documents = snapshot?.documents else { return }
+                    
+                    let messages = documents.compactMap { Message(from: $0) }
+                    self?.messages[chatId] = messages
+                }
+            }
+    }
+    
+    func sendMessage(_ content: String, to chatId: String, type: Message.MessageType = .text, mediaURL: String? = nil) {
+        guard let currentUser = Auth.auth().currentUser else { return }
+        
+        let message = Message(
+            content: content,
+            senderId: currentUser.uid,
+            chatId: chatId,
+            type: type,
+            mediaURL: mediaURL
+        )
+        
+        // Optimistic update
+        if messages[chatId] == nil {
+            messages[chatId] = []
+        }
+        messages[chatId]?.append(message)
+        
+        // Send to Firestore
+        db.collection("messages").document(message.id).setData(message.toDictionary()) { [weak self] error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    self?.errorMessage = "Failed to send message: \(error.localizedDescription)"
+                    // Remove the optimistic update
+                    self?.messages[chatId]?.removeAll { $0.id == message.id }
+                    return
+                }
+                
+                // Update delivery status
+                self?.updateMessageDeliveryStatus(messageId: message.id, status: .sent)
+                
+                // Update chat's last message
+                self?.updateChatLastMessage(chatId: chatId, message: message)
+            }
+        }
+    }
+    
+    func updateMessageDeliveryStatus(messageId: String, status: Message.DeliveryStatus) {
+        db.collection("messages").document(messageId).updateData([
+            "deliveryStatus": status.rawValue
+        ]) { error in
+            if let error = error {
+                print("Failed to update message status: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func updateChatLastMessage(chatId: String, message: Message) {
+        db.collection("chats").document(chatId).updateData([
+            "lastMessage": message.toDictionary(),
+            "updatedAt": Timestamp(date: Date())
+        ]) { error in
+            if let error = error {
+                print("Failed to update chat last message: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    func markMessageAsRead(messageId: String) {
+        updateMessageDeliveryStatus(messageId: messageId, status: .read)
+    }
+    
+    func markAllMessagesAsRead(in chatId: String) {
+        guard let currentUser = Auth.auth().currentUser,
+              let messages = messages[chatId] else { return }
+        
+        let unreadMessages = messages.filter { 
+            $0.senderId != currentUser.uid && $0.deliveryStatus != .read 
+        }
+        
+        for message in unreadMessages {
+            markMessageAsRead(messageId: message.id)
+        }
+    }
+    
+    // MARK: - User Management
+    
+    func searchUsers(query: String) async throws -> [User] {
+        return try await withCheckedThrowingContinuation { continuation in
+            db.collection("users")
+                .whereField("displayName", isGreaterThanOrEqualTo: query)
+                .whereField("displayName", isLessThan: query + "\u{f8ff}")
+                .limit(to: 10)
+                .getDocuments { snapshot, error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    
+                    let users = snapshot?.documents.compactMap { User(from: $0) } ?? []
+                    continuation.resume(returning: users)
+                }
+        }
+    }
+    
+    // MARK: - Cleanup
+    
+    func removeAllListeners() {
+        messageListeners.values.forEach { $0.remove() }
+        messageListeners.removeAll()
+        chatListener?.remove()
+        chatListener = nil
+    }
+    
+    func removeMessageListener(for chatId: String) {
+        messageListeners[chatId]?.remove()
+        messageListeners.removeValue(forKey: chatId)
+    }
+}
