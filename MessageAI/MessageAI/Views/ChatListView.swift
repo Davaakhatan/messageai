@@ -74,7 +74,8 @@ struct ChatListView: View {
             return messageService.chats
         } else {
             return messageService.chats.filter { chat in
-                chat.displayName(for: authService.currentUser?.id ?? "").localizedCaseInsensitiveContains(searchText)
+                let name = chat.isGroup ? (chat.groupName ?? "Group Chat") : (messageService.chatUserNames[chat.id] ?? "")
+                return name.localizedCaseInsensitiveContains(searchText)
             }
         }
     }
@@ -83,7 +84,17 @@ struct ChatListView: View {
 struct ChatRowView: View {
     let chat: Chat
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var messageService: MessageService
     @State private var isOnline = false
+    
+    private var displayName: String {
+        if chat.isGroup {
+            return chat.groupName ?? "Group Chat"
+        } else {
+            // Use cached user name if available, otherwise show loading or ID
+            return messageService.chatUserNames[chat.id] ?? "Loading..."
+        }
+    }
     
     var body: some View {
         HStack(spacing: 12) {
@@ -124,7 +135,7 @@ struct ChatRowView: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(chat.displayName(for: authService.currentUser?.id ?? ""))
+                    Text(displayName)
                         .font(.headline)
                         .lineLimit(1)
                         .foregroundColor(.primary)

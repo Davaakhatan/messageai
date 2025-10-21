@@ -10,7 +10,8 @@ class MessageService: ObservableObject {
     @Published var isConnected = false
     @Published var isLoading = false
     @Published var errorMessage: String?
-    
+    @Published var chatUserNames: [String: String] = [:] // Cache: chatId -> displayName
+
     private let db = Firestore.firestore()
     private var messageListeners: [String: ListenerRegistration] = [:]
     private var chatListener: ListenerRegistration?
@@ -60,8 +61,28 @@ class MessageService: ObservableObject {
                     guard let documents = snapshot?.documents else { return }
                     
                     self?.chats = documents.compactMap { Chat(from: $0) }
+                    
+                    // Load user names for 1-on-1 chats
+                    self?.loadChatUserNames(for: self?.chats ?? [], currentUserId: currentUser.uid)
                 }
             }
+    }
+    
+    private func loadChatUserNames(for chats: [Chat], currentUserId: String) {
+        for chat in chats where !chat.isGroup {
+            let otherUserIds = chat.otherParticipants(currentUserId: currentUserId)
+            if let otherUserId = otherUserIds.first {
+                // Fetch user data for this participant
+                db.collection("users").document(otherUserId).getDocument { [weak self] document, error in
+                    if let document = document, document.exists,
+                       let user = User(from: document) {
+                        DispatchQueue.main.async {
+                            self?.chatUserNames[chat.id] = user.displayName
+                        }
+                    }
+                }
+            }
+        }
     }
     
     func createChat(with userIds: [String], isGroup: Bool = false, groupName: String? = nil) {
