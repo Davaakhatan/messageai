@@ -100,8 +100,8 @@ struct NewChatView: View {
                 await MainActor.run {
                     // Filter out current user and already selected users
                     let currentUserId = authService.currentUser?.id ?? ""
-                    searchResults = results.filter { 
-                        $0.id != currentUserId && !selectedUsers.contains($0)
+                    searchResults = results.filter { user in
+                        user.id != currentUserId && !selectedUsers.contains(user)
                     }
                     isSearching = false
                 }

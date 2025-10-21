@@ -119,23 +119,7 @@ struct ProfileView: View {
                 .cornerRadius(12)
                 .padding(.horizontal, 16)
                 
-                Spacer()
-                
-                // Debug Button
-                Button(action: { 
-                    if let uid = Auth.auth().currentUser?.uid {
-                        print("🔧 Manual user profile creation for UID: \(uid)")
-                        authService.createUserProfileIfNeeded(uid: uid)
-                    }
-                }) {
-                    Text("Debug: Create User Profile")
-                        .foregroundColor(.blue)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal, 16)
+                       Spacer()
                 
                 // Sign Out Button
                 Button(action: { showingSignOutAlert = true }) {
