@@ -10,6 +10,8 @@ struct Chat: Codable, Identifiable, Equatable {
     let groupImageURL: String?
     let createdAt: Date
     let updatedAt: Date
+    let createdBy: String? // Admin/creator of the group
+    let admins: [String]? // List of admin user IDs
     
     init(
         id: String = UUID().uuidString,
@@ -19,7 +21,9 @@ struct Chat: Codable, Identifiable, Equatable {
         groupName: String? = nil,
         groupImageURL: String? = nil,
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        createdBy: String? = nil,
+        admins: [String]? = nil
     ) {
         self.id = id
         self.participants = participants
@@ -29,6 +33,8 @@ struct Chat: Codable, Identifiable, Equatable {
         self.groupImageURL = groupImageURL
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.createdBy = createdBy
+        self.admins = admins ?? (createdBy != nil ? [createdBy!] : [])
     }
 }
 
@@ -51,6 +57,8 @@ extension Chat {
         self.groupImageURL = data["groupImageURL"] as? String
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.createdBy = data["createdBy"] as? String
+        self.admins = data["admins"] as? [String]
         
         // Parse last message if it exists
         if let lastMessageData = data["lastMessage"] as? [String: Any] {
@@ -84,6 +92,14 @@ extension Chat {
             data["groupImageURL"] = groupImageURL
         }
         
+        if let createdBy = createdBy {
+            data["createdBy"] = createdBy
+        }
+        
+        if let admins = admins {
+            data["admins"] = admins
+        }
+        
         if let lastMessage = lastMessage {
             data["lastMessage"] = lastMessage.toDictionary()
         }
@@ -106,5 +122,13 @@ extension Chat {
     
     func otherParticipants(currentUserId: String) -> [String] {
         return participants.filter { $0 != currentUserId }
+    }
+    
+    func isAdmin(userId: String) -> Bool {
+        return admins?.contains(userId) ?? false
+    }
+    
+    func isCreator(userId: String) -> Bool {
+        return createdBy == userId
     }
 }

@@ -7,7 +7,7 @@ struct ChatView: View {
     @State private var messageText = ""
     @State private var showingImagePicker = false
     @State private var selectedImage: UIImage?
-    @State private var showingAddMembers = false
+    @State private var showingGroupInfo = false
     
     private var messages: [Message] {
         messageService.messages[chat.id] ?? []
@@ -52,9 +52,9 @@ struct ChatView: View {
             if chat.isGroup {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
-                        showingAddMembers = true
+                        showingGroupInfo = true
                     }) {
-                        Image(systemName: "person.badge.plus")
+                        Image(systemName: "info.circle")
                             .foregroundColor(.blue)
                     }
                 }
@@ -70,8 +70,8 @@ struct ChatView: View {
         .sheet(isPresented: $showingImagePicker) {
             CustomImagePicker(selectedImage: $selectedImage)
         }
-        .sheet(isPresented: $showingAddMembers) {
-            AddGroupMembersView(chat: chat)
+        .sheet(isPresented: $showingGroupInfo) {
+            GroupInfoView(chat: chat)
                 .environmentObject(messageService)
                 .environmentObject(authService)
         }

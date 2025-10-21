@@ -71,7 +71,9 @@ class MessageService: ObservableObject {
         let chat = Chat(
             participants: participants,
             isGroup: isGroup,
-            groupName: groupName
+            groupName: groupName,
+            createdBy: isGroup ? currentUser.uid : nil,
+            admins: isGroup ? [currentUser.uid] : nil
         )
         
         db.collection("chats").document(chat.id).setData(chat.toDictionary()) { [weak self] error in
@@ -271,6 +273,64 @@ class MessageService: ObservableObject {
                     self?.loadChats()
                 }
             }
+        }
+    }
+    
+    func updateGroupName(chatId: String, newName: String) {
+        db.collection("chats").document(chatId).updateData([
+            "groupName": newName,
+            "updatedAt": Timestamp(date: Date())
+        ]) { [weak self] error in
+            if let error = error {
+                print("Error updating group name: \(error.localizedDescription)")
+            } else {
+                print("✅ Successfully updated group name")
+                self?.loadChats()
+            }
+        }
+    }
+    
+    func deleteChat(chatId: String) {
+        // Delete all messages in the chat first
+        db.collection("messages")
+            .whereField("chatId", isEqualTo: chatId)
+            .getDocuments { [weak self] snapshot, error in
+                if let documents = snapshot?.documents {
+                    for document in documents {
+                        document.reference.delete()
+                    }
+                }
+                
+                // Then delete the chat
+                self?.db.collection("chats").document(chatId).delete { error in
+                    if let error = error {
+                        print("Error deleting chat: \(error.localizedDescription)")
+                    } else {
+                        print("✅ Successfully deleted chat")
+                        self?.loadChats()
+                    }
+                }
+            }
+    }
+    
+    func getUsers(for userIds: [String]) async throws -> [User] {
+        return try await withCheckedThrowingContinuation { continuation in
+            db.collection("users")
+                .whereField(FieldPath.documentID(), in: userIds)
+                .getDocuments { snapshot, error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    
+                    guard let documents = snapshot?.documents else {
+                        continuation.resume(returning: [])
+                        return
+                    }
+                    
+                    let users = documents.compactMap { User(from: $0) }
+                    continuation.resume(returning: users)
+                }
         }
     }
     
