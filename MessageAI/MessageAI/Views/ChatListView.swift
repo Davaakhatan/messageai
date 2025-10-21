@@ -31,6 +31,35 @@ struct ChatListView: View {
                                 ChatRowView(chat: chat)
                             }
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deleteChat(chat)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                
+                                Button {
+                                    muteChat(chat)
+                                } label: {
+                                    Label("Mute", systemImage: "bell.slash")
+                                }
+                                .tint(.orange)
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button {
+                                    markChatAsUnread(chat)
+                                } label: {
+                                    Label("Mark Unread", systemImage: "circle.fill")
+                                }
+                                .tint(.blue)
+                                
+                                Button {
+                                    archiveChat(chat)
+                                } label: {
+                                    Label("Archive", systemImage: "archivebox")
+                                }
+                                .tint(.purple)
+                            }
                         }
                     }
                     .listStyle(PlainListStyle())
@@ -78,6 +107,36 @@ struct ChatListView: View {
                 return name.localizedCaseInsensitiveContains(searchText)
             }
         }
+    }
+    
+    // MARK: - Chat Actions
+    
+    private func deleteChat(_ chat: Chat) {
+        withAnimation {
+            messageService.deleteChat(chatId: chat.id)
+        }
+    }
+    
+    private func muteChat(_ chat: Chat) {
+        // Future implementation: Mute chat notifications
+        print("Mute chat: \(chat.id)")
+        // Show temporary feedback
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+    }
+    
+    private func markChatAsUnread(_ chat: Chat) {
+        // Future implementation: Mark chat as unread
+        print("Mark chat as unread: \(chat.id)")
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+    }
+    
+    private func archiveChat(_ chat: Chat) {
+        // Future implementation: Archive chat
+        print("Archive chat: \(chat.id)")
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
     }
 }
 

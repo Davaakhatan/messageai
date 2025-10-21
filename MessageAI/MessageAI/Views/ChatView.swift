@@ -8,9 +8,19 @@ struct ChatView: View {
     @State private var showingImagePicker = false
     @State private var selectedImage: UIImage?
     @State private var showingGroupInfo = false
+    @State private var showingUserInfo = false
     
     private var messages: [Message] {
         messageService.messages[chat.id] ?? []
+    }
+    
+    // Get proper display name using cached names for 1-on-1 chats
+    private var displayName: String {
+        if chat.isGroup {
+            return chat.groupName ?? "Group Chat"
+        } else {
+            return messageService.chatUserNames[chat.id] ?? "User"
+        }
     }
     
     var body: some View {
@@ -46,17 +56,19 @@ struct ChatView: View {
                 onImageTap: { showingImagePicker = true }
             )
         }
-        .navigationTitle(chat.displayName(for: authService.currentUser?.id ?? ""))
+        .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if chat.isGroup {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    if chat.isGroup {
                         showingGroupInfo = true
-                    }) {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(.blue)
+                    } else {
+                        showingUserInfo = true
                     }
+                }) {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.blue)
                 }
             }
         }
@@ -72,6 +84,11 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showingGroupInfo) {
             GroupInfoView(chat: chat)
+                .environmentObject(messageService)
+                .environmentObject(authService)
+        }
+        .sheet(isPresented: $showingUserInfo) {
+            UserInfoView(chat: chat)
                 .environmentObject(messageService)
                 .environmentObject(authService)
         }
