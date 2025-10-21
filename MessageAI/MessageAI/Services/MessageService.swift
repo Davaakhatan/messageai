@@ -220,6 +220,60 @@ class MessageService: ObservableObject {
         }
     }
     
+    // MARK: - Group Chat Management
+    
+    func addParticipants(to chatId: String, userIds: [String]) {
+        db.collection("chats").document(chatId).getDocument { [weak self] document, error in
+            guard let document = document,
+                  document.exists,
+                  var currentParticipants = document.data()?["participants"] as? [String] else {
+                return
+            }
+            
+            // Add new participants (avoid duplicates)
+            let newParticipants = userIds.filter { !currentParticipants.contains($0) }
+            currentParticipants.append(contentsOf: newParticipants)
+            
+            self?.db.collection("chats").document(chatId).updateData([
+                "participants": currentParticipants,
+                "updatedAt": Timestamp(date: Date())
+            ]) { error in
+                if let error = error {
+                    print("Error adding participants: \(error.localizedDescription)")
+                } else {
+                    print("✅ Successfully added \(newParticipants.count) participants")
+                    // Reload chats to reflect changes
+                    self?.loadChats()
+                }
+            }
+        }
+    }
+    
+    func removeParticipant(from chatId: String, userId: String) {
+        db.collection("chats").document(chatId).getDocument { [weak self] document, error in
+            guard let document = document,
+                  document.exists,
+                  var currentParticipants = document.data()?["participants"] as? [String] else {
+                return
+            }
+            
+            // Remove participant
+            currentParticipants.removeAll { $0 == userId }
+            
+            self?.db.collection("chats").document(chatId).updateData([
+                "participants": currentParticipants,
+                "updatedAt": Timestamp(date: Date())
+            ]) { error in
+                if let error = error {
+                    print("Error removing participant: \(error.localizedDescription)")
+                } else {
+                    print("✅ Successfully removed participant")
+                    self?.loadChats()
+                }
+            }
+        }
+    }
+    
     // MARK: - Cleanup
     
     func removeAllListeners() {
