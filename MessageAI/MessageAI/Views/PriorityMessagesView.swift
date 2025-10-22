@@ -97,8 +97,8 @@ struct PriorityMessagesView: View {
         
         Task {
             do {
-                // Get all messages for this chat
-                let messages = messageService.messages[chatId] ?? []
+                // Get messages directly from Firestore like other AI functions
+                let messages = await aiService.getConversationContext(for: chatId)
                 
                 // Analyze each message for priority
                 var newPriorityMessages: [PriorityMessage] = []

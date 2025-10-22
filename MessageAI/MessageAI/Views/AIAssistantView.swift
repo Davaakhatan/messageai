@@ -1,4 +1,5 @@
 import SwiftUI
+import OpenAI
 
 struct AIAssistantView: View {
     @EnvironmentObject var messageService: MessageService
@@ -159,13 +160,25 @@ struct AIAssistantView: View {
     }
     
     private func callOpenAI(userInput: String) async throws -> String {
-        // OpenAI integration temporarily disabled
-        // This will be implemented when AI features are added
+        guard let apiKey = UserDefaults.standard.string(forKey: "openai_api_key"), !apiKey.isEmpty else {
+            throw NSError(domain: "AIAssistant", code: 1, userInfo: [NSLocalizedDescriptionKey: "OpenAI API key not configured"])
+        }
         
-        // Simulate AI response for now
-        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+        let openAI = OpenAI(apiToken: apiKey)
         
-        return "AI features are temporarily disabled. This is a placeholder response to: '\(userInput)'. AI integration will be added in the next phase."
+        do {
+            let query = ChatQuery(
+                messages: [.user(.init(content: .string(userInput)))],
+                model: .gpt3_5Turbo,
+                temperature: 0.7
+            )
+            
+            let result = try await openAI.chats(query: query)
+            return result.choices.first?.message.content ?? "No response from AI"
+        } catch {
+            print("OpenAI API Error: \(error)")
+            throw error
+        }
     }
 }
 

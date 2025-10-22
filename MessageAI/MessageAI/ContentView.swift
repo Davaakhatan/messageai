@@ -32,33 +32,26 @@ struct MainTabView: View {
                 .tag(0)
                 .badge(messageService.unreadCount)
             
-            SmartSearchView()
+            RemoteTeamAIView()
                 .tabItem {
-                    Image(systemName: selectedTab == 1 ? "magnifyingglass.circle.fill" : "magnifyingglass.circle")
-                    Text("Search")
+                    Image(systemName: selectedTab == 1 ? "person.3.fill" : "person.3")
+                    Text("Team AI")
                 }
                 .tag(1)
             
-            RemoteTeamAIView()
+            AIAssistantView()
                 .tabItem {
-                    Image(systemName: selectedTab == 2 ? "person.3.fill" : "person.3")
-                    Text("Team AI")
+                    Image(systemName: selectedTab == 2 ? "brain.head.profile.fill" : "brain.head.profile")
+                    Text("AI Assistant")
                 }
                 .tag(2)
             
-            AIAssistantView()
-                .tabItem {
-                    Image(systemName: selectedTab == 3 ? "brain.head.profile.fill" : "brain.head.profile")
-                    Text("AI Assistant")
-                }
-                .tag(3)
-            
             ProfileView()
                 .tabItem {
-                    Image(systemName: selectedTab == 4 ? "person.circle.fill" : "person.circle")
+                    Image(systemName: selectedTab == 3 ? "person.circle.fill" : "person.circle")
                     Text("Profile")
                 }
-                .tag(4)
+                .tag(3)
         }
         .accentColor(.blue)
         .onAppear {

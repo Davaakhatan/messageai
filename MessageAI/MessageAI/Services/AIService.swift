@@ -1,6 +1,6 @@
 import Foundation
 import Combine
-// import OpenAI // Temporarily disabled
+import OpenAI
 import FirebaseFirestore
 import FirebaseAuth
 
@@ -17,13 +17,15 @@ class AIService: ObservableObject {
     @Published var priorityMessages: [String: [PriorityMessage]] = [:]
     @Published var collaborationInsights: [String: [CollaborationInsight]] = [:]
     
-    // private let openAI: OpenAI // Temporarily disabled
+    private var openAI: OpenAI?
     private let db = Firestore.firestore()
     
     init() {
         // Initialize OpenAI with API key from UserDefaults or environment
-        // let apiKey = UserDefaults.standard.string(forKey: "openai_api_key") ?? ""
-        // self.openAI = OpenAI(apiToken: apiKey) // Temporarily disabled
+        let apiKey = UserDefaults.standard.string(forKey: "openai_api_key") ?? ""
+        if !apiKey.isEmpty {
+            self.openAI = OpenAI(apiToken: apiKey)
+        }
     }
     
     // MARK: - AI Processing Methods
@@ -71,8 +73,7 @@ class AIService: ObservableObject {
             }
         }
         
-        let context = messages.map { "\($0.senderId): \($0.content)" }.joined(separator: "\n")
-        let prompt = buildSummaryPrompt(context: messages)
+        let prompt = await buildSummaryPrompt(context: messages)
         
         let response = try await callOpenAI(userInput: prompt)
         return response
@@ -89,10 +90,63 @@ class AIService: ObservableObject {
             }
         }
         
-        let prompt = buildActionItemsPrompt(context: messages)
+        let prompt = await buildActionItemsPrompt(context: messages)
         let response = try await callOpenAI(userInput: prompt)
         
         return parseActionItems(response)
+    }
+    
+    // MARK: - Smart Search Implementation
+    
+    func performSmartSearch(query: String, in chats: [Chat]) async throws -> [SearchResult] {
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
+        
+        // Get all messages from the chats
+        var allMessages: [Message] = []
+        for chat in chats {
+            let messages = await getConversationContext(for: chat.id)
+            allMessages.append(contentsOf: messages)
+        }
+        
+        let conversationText = allMessages.map { "\($0.senderId): \($0.content)" }.joined(separator: "\n")
+        
+        let prompt = """
+        Perform intelligent search on this conversation data based on the user's query.
+        
+        User Query: "\(query)"
+        
+        Conversation Data:
+        \(conversationText)
+        
+        Find relevant messages, topics, or information that match the user's intent.
+        Consider synonyms, related concepts, and context.
+        
+        Provide a JSON response:
+        {
+            "results": [
+                {
+                    "messageId": "message_id",
+                    "chatId": "chat_id", 
+                    "relevance": 0.0-1.0,
+                    "summary": "brief summary of why this matches",
+                    "context": "surrounding context"
+                }
+            ]
+        }
+        
+        Only respond with JSON, no additional text.
+        """
+        
+        let response = try await callOpenAI(userInput: prompt)
+        return try parseSearchResults(response)
     }
     
     func translateMessage(_ message: String, to language: String) async throws -> String {
@@ -117,25 +171,39 @@ class AIService: ObservableObject {
         let context = await getConversationContext(for: chatId)
         let participants = Set(context.map { $0.senderId }).map { $0 }
         
-        // Simulate AI processing for now
-        try await Task.sleep(nanoseconds: 2_000_000_000) // 2 second delay
+        // Resolve user IDs to display names
+        let userNames = await resolveUserNames(for: participants)
+        let conversationText = context.map { message in
+            let userName = userNames[message.senderId] ?? message.senderId
+            return "\(userName): \(message.content)"
+        }.joined(separator: "\n")
         
-        let summary = MeetingSummary(
-            chatId: chatId,
-            participants: participants,
-            agenda: ["Project discussion", "Action items review", "Next steps planning"],
-            keyPoints: [
-                "Discussed project timeline and deliverables",
-                "Identified key blockers and dependencies",
-                "Agreed on next milestone targets"
+        let prompt = """
+        Analyze this team conversation and provide a structured meeting summary. 
+        Extract key points, action items, and next steps.
+        
+        Conversation:
+        \(conversationText)
+        
+        Please provide a JSON response with the following structure:
+        {
+            "agenda": ["item1", "item2"],
+            "keyPoints": ["point1", "point2"],
+            "actionItems": [
+                {
+                    "description": "task description",
+                    "assignee": "person name or null",
+                    "dueDate": "YYYY-MM-DD or null",
+                    "priority": "high/medium/low"
+                }
             ],
-            actionItems: [
-                ActionItem(description: "Update project documentation", assignee: participants.first, dueDate: Calendar.current.date(byAdding: .day, value: 3, to: Date()), priority: .high),
-                ActionItem(description: "Review technical requirements", assignee: participants.last, dueDate: Calendar.current.date(byAdding: .day, value: 5, to: Date()), priority: .medium)
-            ],
-            nextMeeting: "Follow-up in 3 days",
-            duration: 3600 // 1 hour
-        )
+            "nextMeeting": "suggestion for next meeting",
+            "duration": 3600
+        }
+        """
+        
+        let response = try await callOpenAI(userInput: prompt)
+        let summary = try parseMeetingSummary(from: response, chatId: chatId, participants: participants, userNames: userNames)
         
         await MainActor.run {
             meetingSummaries[chatId] = summary
@@ -146,7 +214,7 @@ class AIService: ObservableObject {
     
     // 2. Smart Project Status Updates
     func generateProjectStatus(for chatId: String, projectName: String) async throws -> ProjectStatus {
-        let context = await getConversationContext(for: chatId)
+            let context = await getConversationContext(for: chatId)
         
         // Simulate AI analysis
         try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 second delay
@@ -171,21 +239,41 @@ class AIService: ObservableObject {
     // 3. Decision Tracking
     func extractDecisions(from chatId: String) async throws -> [Decision] {
         let context = await getConversationContext(for: chatId)
+        let participants = Set(context.map { $0.senderId }).map { $0 }
         
-        // Simulate AI decision extraction
-        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+        // Resolve user IDs to display names
+        let userNames = await resolveUserNames(for: participants)
+        let conversationText = context.map { message in
+            let userName = userNames[message.senderId] ?? message.senderId
+            return "\(userName): \(message.content)"
+        }.joined(separator: "\n")
         
-        let decisions = [
-            Decision(
-                title: "Adopt new development framework",
-                description: "Team decided to migrate to SwiftUI for better UI development",
-                decisionMaker: context.first?.senderId ?? "Unknown",
-                participants: Array(Set(context.map { $0.senderId })),
-                status: .active,
-                followUpDate: Calendar.current.date(byAdding: .weekOfYear, value: 2, to: Date()),
-                tags: ["technical", "architecture", "migration"]
-            )
-        ]
+        let prompt = """
+        Analyze this team conversation and extract any decisions that were made.
+        Look for statements like "we decided", "let's go with", "I think we should", "agreed", etc.
+        
+        Conversation:
+        \(conversationText)
+        
+        Provide a JSON response with decisions array:
+        {
+            "decisions": [
+                {
+                    "title": "decision title",
+                    "description": "what was decided",
+                    "decisionMaker": "who made the decision",
+                    "status": "active/implemented/reversed/expired",
+                    "followUpDate": "YYYY-MM-DD or null",
+                    "tags": ["tag1", "tag2"]
+                }
+            ]
+        }
+        
+        Only respond with JSON, no additional text.
+        """
+        
+        let response = try await callOpenAI(userInput: prompt)
+        let decisions = try parseDecisionsResponse(response, participants: Array(Set(context.map { $0.senderId })), userNames: userNames)
         
         await MainActor.run {
             self.decisions[chatId] = decisions
@@ -196,37 +284,59 @@ class AIService: ObservableObject {
     
     // 4. Priority Message Detection
     func analyzeMessagePriority(_ message: Message, in chatId: String) async throws -> PriorityMessage? {
-        // Simulate AI priority analysis
-        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
+        let prompt = """
+        Analyze this message for priority level and urgency. Consider context, tone, and content.
         
-        let urgentKeywords = ["urgent", "asap", "critical", "deadline", "blocker", "issue"]
-        let isUrgent = urgentKeywords.contains { message.content.lowercased().contains($0) }
+        Message: "\(message.content)"
         
-        if isUrgent {
-            let priorityMessage = PriorityMessage(
-                messageId: message.id,
-                priority: .urgent,
-                reason: "Contains urgent keywords",
-                suggestedAction: "Review immediately and respond"
-            )
-            
-            await MainActor.run {
-                if priorityMessages[chatId] == nil {
-                    priorityMessages[chatId] = []
-                }
-                priorityMessages[chatId]?.append(priorityMessage)
-            }
-            
-            return priorityMessage
+        Determine if this message is:
+        - urgent (requires immediate attention)
+        - high (important but not urgent)
+        - medium (normal priority)
+        - low (can be addressed later)
+        
+        Provide a JSON response:
+        {
+            "priority": "urgent/high/medium/low",
+            "reason": "explanation for the priority level",
+            "suggestedAction": "recommended action"
         }
         
-        return nil
+        Only respond with JSON, no additional text.
+        """
+        
+        let response = try await callOpenAI(userInput: prompt)
+        let priorityData = try parsePriorityResponse(response)
+        
+        if priorityData.priority == .low {
+            return nil // Don't create priority messages for low priority
+        }
+        
+        let priorityMessage = PriorityMessage(
+            messageId: message.id,
+            priority: priorityData.priority,
+            reason: priorityData.reason,
+            suggestedAction: priorityData.suggestedAction
+        )
+        
+        await MainActor.run {
+            if priorityMessages[chatId] == nil {
+                priorityMessages[chatId] = []
+            }
+            priorityMessages[chatId]?.append(priorityMessage)
+        }
+        
+        return priorityMessage
     }
     
     // 5. Team Collaboration Insights
     func generateCollaborationInsights(for chatId: String) async throws -> [CollaborationInsight] {
         let context = await getConversationContext(for: chatId)
         let participants = Array(Set(context.map { $0.senderId }))
+        
+        // Resolve user IDs to display names
+        let userNames = await resolveUserNames(for: participants)
+        let participantNames = participants.compactMap { userNames[$0] ?? $0 }
         
         // Simulate AI collaboration analysis
         try await Task.sleep(nanoseconds: 2_000_000_000) // 2 second delay
@@ -240,7 +350,7 @@ class AIService: ObservableObject {
                     "Schedule recurring meetings during peak communication hours",
                     "Consider time zone differences for remote team members"
                 ],
-                participants: participants
+                participants: participantNames
             ),
             CollaborationInsight(
                 chatId: chatId,
@@ -250,7 +360,7 @@ class AIService: ObservableObject {
                     "Distribute meeting responsibilities more evenly",
                     "Consider rotating meeting facilitation roles"
                 ],
-                participants: participants
+                participants: participantNames
             )
         ]
         
@@ -276,7 +386,7 @@ class AIService: ObservableObject {
         )
     }
     
-    private func getConversationContext(for chatId: String) async -> [Message] {
+    func getConversationContext(for chatId: String) async -> [Message] {
         return await withCheckedContinuation { continuation in
             db.collection("messages")
                 .whereField("chatId", isEqualTo: chatId)
@@ -289,13 +399,23 @@ class AIService: ObservableObject {
         }
     }
     
-    private func buildSummaryPrompt(context: [Message]) -> String {
-        let messages = context.map { "\($0.senderId): \($0.content)" }.joined(separator: "\n")
+    private func buildSummaryPrompt(context: [Message]) async -> String {
+        let participants = Set(context.map { $0.senderId }).map { $0 }
+        let userNames = await resolveUserNames(for: participants)
+        let messages = context.map { message in
+            let userName = userNames[message.senderId] ?? message.senderId
+            return "\(userName): \(message.content)"
+        }.joined(separator: "\n")
         return "Conversation:\n\(messages)"
     }
     
-    private func buildActionItemsPrompt(context: [Message]) -> String {
-        let messages = context.map { "\($0.senderId): \($0.content)" }.joined(separator: "\n")
+    private func buildActionItemsPrompt(context: [Message]) async -> String {
+        let participants = Set(context.map { $0.senderId }).map { $0 }
+        let userNames = await resolveUserNames(for: participants)
+        let messages = context.map { message in
+            let userName = userNames[message.senderId] ?? message.senderId
+            return "\(userName): \(message.content)"
+        }.joined(separator: "\n")
         return "Extract action items from this conversation:\n\(messages)"
     }
     
@@ -312,6 +432,188 @@ class AIService: ObservableObject {
         }
         
         return []
+    }
+    
+    private func parseMeetingSummary(from response: String, chatId: String, participants: [String], userNames: [String: String]) throws -> MeetingSummary {
+        // Extract JSON from response (handle cases where AI adds extra text)
+        let jsonStart = response.range(of: "{")
+        let jsonEnd = response.range(of: "}", options: .backwards)
+        
+        guard let start = jsonStart?.lowerBound, let end = jsonEnd?.upperBound else {
+            throw AIError.apiError("Invalid JSON response from AI")
+        }
+        
+        let jsonString = String(response[start..<end])
+        
+        guard let data = jsonString.data(using: .utf8),
+              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AIError.apiError("Failed to parse JSON response")
+        }
+        
+        let agenda = json["agenda"] as? [String] ?? []
+        let keyPoints = json["keyPoints"] as? [String] ?? []
+        let nextMeeting = json["nextMeeting"] as? String
+        let duration = json["duration"] as? TimeInterval ?? 3600
+        
+        // Parse action items
+        var actionItems: [ActionItem] = []
+        if let actionItemsData = json["actionItems"] as? [[String: Any]] {
+            for item in actionItemsData {
+                let description = item["description"] as? String ?? ""
+                let assignee = item["assignee"] as? String
+                let priorityString = item["priority"] as? String ?? "medium"
+                let priority = Priority(rawValue: priorityString) ?? .medium
+                
+                var dueDate: Date?
+                if let dueDateString = item["dueDate"] as? String {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    dueDate = formatter.date(from: dueDateString)
+                }
+                
+                actionItems.append(ActionItem(
+                    description: description,
+                    assignee: assignee,
+                    dueDate: dueDate,
+                    priority: priority
+                ))
+            }
+        }
+        
+        // Convert participant IDs to display names
+        let participantNames = participants.compactMap { userNames[$0] ?? $0 }
+        
+        return MeetingSummary(
+            chatId: chatId,
+            participants: participantNames,
+            agenda: agenda,
+            keyPoints: keyPoints,
+            actionItems: actionItems,
+            nextMeeting: nextMeeting,
+            duration: duration
+        )
+    }
+    
+    private func parsePriorityResponse(_ response: String) throws -> (priority: Priority, reason: String, suggestedAction: String) {
+        // Extract JSON from response
+        let jsonStart = response.range(of: "{")
+        let jsonEnd = response.range(of: "}", options: .backwards)
+        
+        guard let start = jsonStart?.lowerBound, let end = jsonEnd?.upperBound else {
+            throw AIError.apiError("Invalid JSON response from AI")
+        }
+        
+        let jsonString = String(response[start..<end])
+        
+        guard let data = jsonString.data(using: .utf8),
+              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AIError.apiError("Failed to parse JSON response")
+        }
+        
+        let priorityString = json["priority"] as? String ?? "medium"
+        let priority = Priority(rawValue: priorityString) ?? .medium
+        let reason = json["reason"] as? String ?? "AI analysis"
+        let suggestedAction = json["suggestedAction"] as? String ?? "Review message"
+        
+        return (priority: priority, reason: reason, suggestedAction: suggestedAction)
+    }
+    
+    private func parseDecisionsResponse(_ response: String, participants: [String], userNames: [String: String]) throws -> [Decision] {
+        // Extract JSON from response
+        let jsonStart = response.range(of: "{")
+        let jsonEnd = response.range(of: "}", options: .backwards)
+        
+        guard let start = jsonStart?.lowerBound, let end = jsonEnd?.upperBound else {
+            throw AIError.apiError("Invalid JSON response from AI")
+        }
+        
+        let jsonString = String(response[start..<end])
+        
+        guard let data = jsonString.data(using: .utf8),
+              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AIError.apiError("Failed to parse JSON response")
+        }
+        
+        var decisions: [Decision] = []
+        
+        if let decisionsData = json["decisions"] as? [[String: Any]] {
+            for decisionData in decisionsData {
+                let title = decisionData["title"] as? String ?? "Untitled Decision"
+                let description = decisionData["description"] as? String ?? ""
+                let decisionMaker = decisionData["decisionMaker"] as? String ?? participants.first ?? "Unknown"
+                let statusString = decisionData["status"] as? String ?? "active"
+                let status = DecisionStatus(rawValue: statusString) ?? .active
+                let tags = decisionData["tags"] as? [String] ?? []
+                
+                var followUpDate: Date?
+                if let followUpDateString = decisionData["followUpDate"] as? String {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    followUpDate = formatter.date(from: followUpDateString)
+                }
+                
+                // Convert participant IDs to display names
+                let participantNames = participants.compactMap { userNames[$0] ?? $0 }
+                
+                let decision = Decision(
+                    title: title,
+                    description: description,
+                    decisionMaker: decisionMaker,
+                    participants: participantNames,
+                    status: status,
+                    followUpDate: followUpDate,
+                    tags: tags
+                )
+                
+                decisions.append(decision)
+            }
+        }
+        
+        return decisions
+    }
+    
+    private func parseSearchResults(_ response: String) throws -> [SearchResult] {
+        // Extract JSON from response
+        let jsonStart = response.range(of: "{")
+        let jsonEnd = response.range(of: "}", options: .backwards)
+        
+        guard let start = jsonStart?.lowerBound, let end = jsonEnd?.upperBound else {
+            throw AIError.apiError("Invalid JSON response from AI")
+        }
+        
+        let jsonString = String(response[start..<end])
+        
+        guard let data = jsonString.data(using: .utf8),
+              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AIError.apiError("Failed to parse JSON response")
+        }
+        
+        var results: [SearchResult] = []
+        
+        if let resultsData = json["results"] as? [[String: Any]] {
+            for resultData in resultsData {
+                let messageId = resultData["messageId"] as? String ?? ""
+                let chatId = resultData["chatId"] as? String ?? ""
+                let relevance = resultData["relevance"] as? Double ?? 0.0
+                let summary = resultData["summary"] as? String ?? ""
+                let context = resultData["context"] as? String ?? ""
+                
+                let result = SearchResult(
+                    id: UUID().uuidString,
+                    type: .message,
+                    title: summary,
+                    subtitle: context,
+                    content: summary,
+                    timestamp: Date(),
+                    chatId: chatId,
+                    metadata: ["relevance": "\(relevance)", "messageId": messageId]
+                )
+                
+                results.append(result)
+            }
+        }
+        
+        return results
     }
     
     // MARK: - Firestore Integration
@@ -357,16 +659,80 @@ class AIService: ObservableObject {
     func setAPIKey(_ key: String) {
         UserDefaults.standard.set(key, forKey: "openai_api_key")
         // Reinitialize OpenAI with new key
-        // Note: In a real app, you'd want to handle this more securely
+        self.openAI = OpenAI(apiToken: key)
+        print("✅ OpenAI API key configured successfully")
     }
     
     private func callOpenAI(userInput: String) async throws -> String {
-        // OpenAI integration temporarily disabled
-        // This will be implemented when AI features are added
+        guard let openAI = openAI else {
+            throw AIError.noAPIKey
+        }
         
-        // Simulate AI response for now
-        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+        do {
+            let query = ChatQuery(
+                messages: [.user(.init(content: .string(userInput)))],
+                model: .gpt3_5Turbo,
+                temperature: 0.7
+            )
+            
+            let result = try await openAI.chats(query: query)
+            return result.choices.first?.message.content ?? "No response from AI"
+        } catch {
+            print("OpenAI API Error: \(error)")
+            throw AIError.apiError(error.localizedDescription)
+        }
+    }
+    
+    // MARK: - User Name Resolution
+    
+    private func resolveUserNames(for userIds: [String]) async -> [String: String] {
+        var userNames: [String: String] = [:]
         
-        return "AI features are temporarily disabled. This is a placeholder response to: '\(userInput)'. AI integration will be added in the next phase."
+        await withTaskGroup(of: (String, String?).self) { group in
+            for userId in userIds {
+                group.addTask {
+                    let userName = await self.fetchUserName(for: userId)
+                    return (userId, userName)
+                }
+            }
+            
+            for await (userId, userName) in group {
+                if let userName = userName {
+                    userNames[userId] = userName
+                }
+            }
+        }
+        
+        return userNames
+    }
+    
+    private func fetchUserName(for userId: String) async -> String? {
+        return await withCheckedContinuation { continuation in
+            db.collection("users").document(userId).getDocument { document, error in
+                if let document = document, document.exists,
+                   let data = document.data(),
+                   let displayName = data["displayName"] as? String {
+                    continuation.resume(returning: displayName)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Error Handling
+    
+    enum AIError: LocalizedError {
+        case noAPIKey
+        case apiError(String)
+        
+        var errorDescription: String? {
+            switch self {
+            case .noAPIKey:
+                return "OpenAI API key not configured"
+            case .apiError(let message):
+                return "OpenAI API error: \(message)"
+            }
+        }
     }
 }

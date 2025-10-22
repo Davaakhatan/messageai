@@ -201,3 +201,6 @@ enum CollaborationType: String, Codable, CaseIterable {
     case skillGaps = "skill_gaps"
     case timeZoneOptimization = "timezone_optimization"
 }
+
+// MARK: - Search Result Models
+// Note: SearchResult is already defined in SmartSearchService.swift

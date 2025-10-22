@@ -247,18 +247,49 @@ class MessageService: ObservableObject {
     }
     
     func markAllMessagesAsRead(in chatId: String) {
-        guard let currentUser = Auth.auth().currentUser,
-              let messages = messages[chatId] else { return }
+        guard let currentUser = Auth.auth().currentUser else { return }
         
-        let unreadMessages = messages.filter { 
-            $0.senderId != currentUser.uid && $0.deliveryStatus != .read 
-        }
-        
-        print("📖 Marking \(unreadMessages.count) messages as read in chat \(chatId)")
-        
-        for message in unreadMessages {
-            markMessageAsRead(messageId: message.id)
-        }
+        // Get all messages for this chat and filter client-side
+        db.collection("messages")
+            .whereField("chatId", isEqualTo: chatId)
+            .whereField("recipients", arrayContains: currentUser.uid)
+            .getDocuments { [weak self] snapshot, error in
+                if let error = error {
+                    print("❌ Error getting unread messages: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else { return }
+                
+                // Filter client-side for unread messages from other users
+                let unreadMessages = documents.filter { document in
+                    let data = document.data()
+                    let senderId = data["senderId"] as? String ?? ""
+                    let deliveryStatus = data["deliveryStatus"] as? String ?? ""
+                    return senderId != currentUser.uid && deliveryStatus != "read"
+                }
+                
+                print("📖 Marking \(unreadMessages.count) messages as read in chat \(chatId)")
+                
+                if unreadMessages.isEmpty {
+                    print("✅ No unread messages to mark as read")
+                    return
+                }
+                
+                // Update each unread message in a batch
+                let batch = self?.db.batch()
+                for document in unreadMessages {
+                    batch?.updateData(["deliveryStatus": "read"], forDocument: document.reference)
+                }
+                
+                batch?.commit { error in
+                    if let error = error {
+                        print("❌ Error marking messages as read: \(error.localizedDescription)")
+                    } else {
+                        print("✅ Successfully marked \(unreadMessages.count) messages as read")
+                    }
+                }
+            }
     }
     
     // MARK: - Unread Count Management

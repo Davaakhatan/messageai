@@ -12,6 +12,7 @@
 		9F86E85A2EA6C27B0077C1BD /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 9F86E8592EA6C27B0077C1BD /* FirebaseStorage */; };
 		9F86E85C2EA6C4570077C1BD /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9F86E85B2EA6C4570077C1BD /* FirebaseAuth */; };
 		9F86E85E2EA6C4690077C1BD /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9F86E85D2EA6C4690077C1BD /* FirebaseCore */; };
+		9F86E8972EA931270077C1BD /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 9F86E8962EA931270077C1BD /* OpenAI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +36,7 @@
 				9F86E85E2EA6C4690077C1BD /* FirebaseCore in Frameworks */,
 				9F86E85C2EA6C4570077C1BD /* FirebaseAuth in Frameworks */,
 				9F86E85A2EA6C27B0077C1BD /* FirebaseStorage in Frameworks */,
+				9F86E8972EA931270077C1BD /* OpenAI in Frameworks */,
 				9F86E8562EA6C27B0077C1BD /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -91,6 +93,7 @@
 				9F86E8592EA6C27B0077C1BD /* FirebaseStorage */,
 				9F86E85B2EA6C4570077C1BD /* FirebaseAuth */,
 				9F86E85D2EA6C4690077C1BD /* FirebaseCore */,
+				9F86E8962EA931270077C1BD /* OpenAI */,
 			);
 			productName = MessageAI;
 			productReference = 9F86E81F2EA6BF800077C1BD /* MessageAI.app */;
@@ -122,6 +125,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9F86E82D2EA6BF9A0077C1BD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				9F86E8952EA931270077C1BD /* XCRemoteSwiftPackageReference "OpenAI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9F86E8202EA6BF800077C1BD /* Products */;
@@ -367,6 +371,14 @@
 				minimumVersion = 12.4.0;
 			};
 		};
+		9F86E8952EA931270077C1BD /* XCRemoteSwiftPackageReference "OpenAI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/MacPaw/OpenAI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -394,6 +406,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9F86E82D2EA6BF9A0077C1BD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
+		};
+		9F86E8962EA931270077C1BD /* OpenAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9F86E8952EA931270077C1BD /* XCRemoteSwiftPackageReference "OpenAI" */;
+			productName = OpenAI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
