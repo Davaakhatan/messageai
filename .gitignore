@@ -39,3 +39,4 @@ GoogleService-Info.plist
 
 # Swift Package Manager
 .swiftpm/
+DerivedData/
