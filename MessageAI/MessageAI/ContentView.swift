@@ -20,6 +20,7 @@ struct ContentView: View {
 struct MainTabView: View {
     @State private var selectedTab = 0
     @EnvironmentObject var messageService: MessageService
+    @EnvironmentObject var notificationManager: ProductionNotificationManager
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -61,6 +62,9 @@ struct MainTabView: View {
         }
         .accentColor(.blue)
         .onAppear {
+            // Clear all notifications when main tab view appears
+            notificationManager.clearAllNotifications()
+            
             // Configure tab bar appearance
             let appearance = UITabBarAppearance()
             appearance.configureWithOpaqueBackground()

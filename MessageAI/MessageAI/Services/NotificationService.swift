@@ -4,6 +4,7 @@ import FirebaseMessaging
 import FirebaseFirestore
 import FirebaseAuth
 
+/// Production-ready notification service following iOS best practices
 class NotificationService {
     static let shared = NotificationService()
     
@@ -12,11 +13,10 @@ class NotificationService {
     // MARK: - Send Push Notification
     
     func sendMessageNotification(to userId: String, message: Message, senderName: String) {
-        // For simulator testing, we'll use a different approach
         // Check if we're running on simulator
         #if targetEnvironment(simulator)
-        // Simulator: Use SimulatorNotificationManager for cross-simulator notifications
-        SimulatorNotificationManager.shared.sendNotificationToSimulator(
+        // Simulator: Use ProductionNotificationManager for cross-simulator notifications
+        ProductionNotificationManager.shared.sendNotification(
             to: userId,
             message: message,
             senderName: senderName

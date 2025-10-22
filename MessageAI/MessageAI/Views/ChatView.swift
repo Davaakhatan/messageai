@@ -79,8 +79,12 @@ struct ChatView: View {
         .onAppear {
             messageService.loadMessages(for: chat.id)
             messageService.markAllMessagesAsRead(in: chat.id)
-            // Mark simulator notifications as read for this chat
-            SimulatorNotificationManager.shared.markAllNotificationsAsReadForChat(chat.id)
+            // Mark notifications as read for this chat using production manager
+            ProductionNotificationManager.shared.markAllNotificationsAsReadForChat(chat.id)
+            // Clear system notifications for this chat
+            ProductionNotificationManager.shared.clearSystemNotificationsForChat(chat.id)
+            // Also clear all notifications to prevent old ones from showing
+            ProductionNotificationManager.shared.clearAllNotifications()
         }
         .onDisappear {
             messageService.removeMessageListener(for: chat.id)
