@@ -155,6 +155,25 @@ struct ChatRowView: View {
         }
     }
     
+    private var unreadCount: Int {
+        messageService.chatUnreadCounts[chat.id] ?? 0
+    }
+    
+    private var isUnread: Bool {
+        unreadCount > 0
+    }
+    
+    private var lastMessageText: String {
+        guard let lastMessage = chat.lastMessage else { return "No messages yet" }
+        
+        // If message is too long, show truncated version with count
+        if lastMessage.content.count > 50 {
+            let truncated = String(lastMessage.content.prefix(47))
+            return "\(truncated)..."
+        }
+        return lastMessage.content
+    }
+    
     var body: some View {
         HStack(spacing: 12) {
             // Profile Image with Online Status
@@ -196,37 +215,63 @@ struct ChatRowView: View {
                 HStack {
                     Text(displayName)
                         .font(.headline)
+                        .fontWeight(isUnread ? .bold : .medium)
                         .lineLimit(1)
-                        .foregroundColor(.primary)
+                        .foregroundColor(isUnread ? .primary : .primary)
                     
                     Spacer()
                     
                     if let lastMessage = chat.lastMessage {
                         Text(formatTime(lastMessage.timestamp))
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(isUnread ? .blue : .secondary)
                     }
                 }
                 
                 HStack {
                     if let lastMessage = chat.lastMessage {
-                        Text(lastMessage.content)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(lastMessageText)
+                                .font(.subheadline)
+                                .fontWeight(isUnread ? .medium : .regular)
+                                .foregroundColor(isUnread ? .primary : .secondary)
+                                .lineLimit(2)
+                            
+                            // Show message count if there are multiple unread messages
+                            if unreadCount > 1 {
+                                Text("\(unreadCount) messages")
+                                    .font(.caption2)
+                                    .foregroundColor(.blue)
+                                    .fontWeight(.medium)
+                            }
+                        }
                         
                         Spacer()
                         
-                        // Delivery status indicator
-                        if lastMessage.senderId == authService.currentUser?.id {
-                            HStack(spacing: 2) {
-                                Image(systemName: deliveryStatusIcon(lastMessage.deliveryStatus))
-                                    .font(.caption)
-                                    .foregroundColor(deliveryStatusColor(lastMessage.deliveryStatus))
-                                
-                                if lastMessage.deliveryStatus == .sending {
-                                    ProgressView()
-                                        .scaleEffect(0.6)
+                        VStack(alignment: .trailing, spacing: 4) {
+                            // Unread badge
+                            if unreadCount > 0 {
+                                Text("\(unreadCount)")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.blue)
+                                    .clipShape(Capsule())
+                            }
+                            
+                            // Delivery status indicator
+                            if lastMessage.senderId == authService.currentUser?.id {
+                                HStack(spacing: 2) {
+                                    Image(systemName: lastMessage.deliveryStatus.checkmarkIcon)
+                                        .font(.caption)
+                                        .foregroundColor(lastMessage.deliveryStatus.displayColor)
+                                    
+                                    if lastMessage.deliveryStatus == .sending {
+                                        ProgressView()
+                                            .scaleEffect(0.6)
+                                    }
                                 }
                             }
                         }
@@ -241,6 +286,10 @@ struct ChatRowView: View {
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isUnread ? Color.blue.opacity(0.05) : Color.clear)
+        )
         .onAppear {
             // Check online status for one-on-one chats
             if !chat.isGroup {
@@ -272,35 +321,6 @@ struct ChatRowView: View {
         return formatter.string(from: date)
     }
     
-    private func deliveryStatusIcon(_ status: Message.DeliveryStatus) -> String {
-        switch status {
-        case .sending:
-            return "clock"
-        case .sent:
-            return "checkmark"
-        case .delivered:
-            return "checkmark.circle"
-        case .read:
-            return "checkmark.circle.fill"
-        case .failed:
-            return "exclamationmark.triangle"
-        }
-    }
-    
-    private func deliveryStatusColor(_ status: Message.DeliveryStatus) -> Color {
-        switch status {
-        case .sending:
-            return .orange
-        case .sent:
-            return .blue
-        case .delivered:
-            return .blue
-        case .read:
-            return .green
-        case .failed:
-            return .red
-        }
-    }
 }
 
 struct EmptyChatsView: View {

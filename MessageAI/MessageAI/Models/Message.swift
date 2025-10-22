@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import FirebaseFirestore
 
 struct Message: Codable, Identifiable, Equatable {
@@ -11,6 +12,7 @@ struct Message: Codable, Identifiable, Equatable {
     let deliveryStatus: DeliveryStatus
     let mediaURL: String?
     let replyToMessageId: String?
+    let recipients: [String] // Array of user IDs who should receive this message
     
     init(
         id: String = UUID().uuidString,
@@ -21,7 +23,8 @@ struct Message: Codable, Identifiable, Equatable {
         type: MessageType = .text,
         deliveryStatus: DeliveryStatus = .sending,
         mediaURL: String? = nil,
-        replyToMessageId: String? = nil
+        replyToMessageId: String? = nil,
+        recipients: [String] = []
     ) {
         self.id = id
         self.content = content
@@ -32,6 +35,7 @@ struct Message: Codable, Identifiable, Equatable {
         self.deliveryStatus = deliveryStatus
         self.mediaURL = mediaURL
         self.replyToMessageId = replyToMessageId
+        self.recipients = recipients
     }
     
     enum MessageType: String, Codable, CaseIterable {
@@ -48,6 +52,32 @@ struct Message: Codable, Identifiable, Equatable {
         case delivered = "delivered"
         case read = "read"
         case failed = "failed"
+        
+        var displayColor: Color {
+            switch self {
+            case .sending, .sent:
+                return .gray
+            case .delivered:
+                return .blue
+            case .read:
+                return .green
+            case .failed:
+                return .red
+            }
+        }
+        
+        var checkmarkIcon: String {
+            switch self {
+            case .sending, .sent:
+                return "checkmark"
+            case .delivered:
+                return "checkmark"
+            case .read:
+                return "checkmark.circle.fill"
+            case .failed:
+                return "exclamationmark"
+            }
+        }
     }
 }
 
@@ -76,6 +106,7 @@ extension Message {
         self.deliveryStatus = deliveryStatus
         self.mediaURL = data["mediaURL"] as? String
         self.replyToMessageId = data["replyToMessageId"] as? String
+        self.recipients = data["recipients"] as? [String] ?? []
     }
     
     func toDictionary() -> [String: Any] {
@@ -87,7 +118,8 @@ extension Message {
             "type": type.rawValue,
             "deliveryStatus": deliveryStatus.rawValue,
             "mediaURL": mediaURL as Any,
-            "replyToMessageId": replyToMessageId as Any
+            "replyToMessageId": replyToMessageId as Any,
+            "recipients": recipients
         ]
     }
 }

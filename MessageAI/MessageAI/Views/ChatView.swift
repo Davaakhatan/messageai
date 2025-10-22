@@ -47,6 +47,10 @@ struct ChatView: View {
                         }
                     }
                 }
+                .onAppear {
+                    // Mark all messages as read when chat is viewed
+                    messageService.markAllMessagesAsRead(in: chat.id)
+                }
             }
             
             // Message Input
@@ -75,6 +79,8 @@ struct ChatView: View {
         .onAppear {
             messageService.loadMessages(for: chat.id)
             messageService.markAllMessagesAsRead(in: chat.id)
+            // Mark simulator notifications as read for this chat
+            SimulatorNotificationManager.shared.markAllNotificationsAsReadForChat(chat.id)
         }
         .onDisappear {
             messageService.removeMessageListener(for: chat.id)
@@ -120,6 +126,11 @@ struct MessageBubbleView: View {
     let message: Message
     let isFromCurrentUser: Bool
     @State private var showingTimestamp = false
+    @EnvironmentObject var authService: AuthService
+    
+    private var isUnread: Bool {
+        !isFromCurrentUser && message.deliveryStatus != .read
+    }
     
     var body: some View {
         HStack {
@@ -154,9 +165,13 @@ struct MessageBubbleView: View {
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 18)
-                        .fill(isFromCurrentUser ? Color.blue : Color.gray.opacity(0.2))
+                        .fill(isFromCurrentUser ? Color.blue : (isUnread ? Color.blue.opacity(0.1) : Color.gray.opacity(0.2)))
                 )
-                .foregroundColor(isFromCurrentUser ? .white : .primary)
+                .foregroundColor(isFromCurrentUser ? .white : (isUnread ? .blue : .primary))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(isUnread ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
+                )
                 .onTapGesture {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         showingTimestamp.toggle()
@@ -180,9 +195,9 @@ struct MessageBubbleView: View {
                     }
                     
                     if isFromCurrentUser {
-                        Image(systemName: deliveryStatusIcon(message.deliveryStatus))
+                        Image(systemName: message.deliveryStatus.checkmarkIcon)
                             .font(.caption2)
-                            .foregroundColor(deliveryStatusColor(message.deliveryStatus))
+                            .foregroundColor(message.deliveryStatus.displayColor)
                     }
                 }
                 .padding(.horizontal, 4)
@@ -219,35 +234,6 @@ struct MessageBubbleView: View {
         return formatter.string(from: date)
     }
     
-    private func deliveryStatusIcon(_ status: Message.DeliveryStatus) -> String {
-        switch status {
-        case .sending:
-            return "clock"
-        case .sent:
-            return "checkmark"
-        case .delivered:
-            return "checkmark.circle"
-        case .read:
-            return "checkmark.circle.fill"
-        case .failed:
-            return "exclamationmark.triangle"
-        }
-    }
-    
-    private func deliveryStatusColor(_ status: Message.DeliveryStatus) -> Color {
-        switch status {
-        case .sending:
-            return .orange
-        case .sent:
-            return .blue
-        case .delivered:
-            return .blue
-        case .read:
-            return .green
-        case .failed:
-            return .red
-        }
-    }
 }
 
 struct MessageInputView: View {

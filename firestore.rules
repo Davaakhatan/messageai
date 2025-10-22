@@ -11,7 +11,13 @@ service cloud.firestore {
     match /messages/{messageId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && 
+      allow update: if request.auth != null && (
+        // Sender can update their own messages
+        request.auth.uid == resource.data.senderId ||
+        // Recipients can update delivery status (mark as read)
+        request.auth.uid in resource.data.recipients
+      );
+      allow delete: if request.auth != null && 
         request.auth.uid == resource.data.senderId;
     }
     
@@ -39,9 +45,26 @@ service cloud.firestore {
         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
     }
     
-    // Test collection for debugging
+    // Test collection for debugging - allow all access for connection testing
     match /test/{document} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
+    }
+    
+    // User-specific unread counts - secure and efficient
+    match /userUnreadCounts/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Simulator notifications - only for development/testing
+    match /simulator_notifications/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null; // Any authenticated user can write
+    }
+    
+    // Simulator notification subcollection
+    match /simulator_notifications/{userId}/notifications/{notificationId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null; // Any authenticated user can write
     }
   }
 }

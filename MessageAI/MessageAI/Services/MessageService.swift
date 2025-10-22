@@ -11,6 +11,8 @@ class MessageService: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var chatUserNames: [String: String] = [:] // Cache: chatId -> displayName
+    @Published var unreadCount: Int = 0
+    @Published var chatUnreadCounts: [String: Int] = [:]
 
     private let db = Firestore.firestore()
     private var messageListeners: [String: ListenerRegistration] = [:]
@@ -24,6 +26,7 @@ class MessageService: ObservableObject {
         }
         #endif
         setupConnectionListener()
+        startUnreadCountListener()
     }
     
     deinit {
@@ -31,7 +34,13 @@ class MessageService: ObservableObject {
     }
     
     private func setupConnectionListener() {
-        db.collection("test").addSnapshotListener { [weak self] _, error in
+        // Set connection status to true by default to avoid permission issues
+        DispatchQueue.main.async {
+            self.isConnected = true
+        }
+        
+        // Optional: Test connection with a simpler approach
+        db.collection("users").limit(to: 1).getDocuments { [weak self] _, error in
             DispatchQueue.main.async {
                 self?.isConnected = error == nil
             }
@@ -130,6 +139,7 @@ class MessageService: ObservableObject {
                     
                     let messages = documents.compactMap { Message(from: $0) }
                     self?.messages[chatId] = messages
+                    self?.updateUnreadCount()
                 }
             }
     }
@@ -137,19 +147,37 @@ class MessageService: ObservableObject {
     func sendMessage(_ content: String, to chatId: String, type: Message.MessageType = .text, mediaURL: String? = nil) {
         guard let currentUser = Auth.auth().currentUser else { return }
         
-        let message = Message(
-            content: content,
-            senderId: currentUser.uid,
-            chatId: chatId,
-            type: type,
-            mediaURL: mediaURL
-        )
-        
-        // Optimistic update
-        if messages[chatId] == nil {
-            messages[chatId] = []
+        // Get chat participants to determine recipients
+        db.collection("chats").document(chatId).getDocument { [weak self] document, error in
+            guard let document = document,
+                  let data = document.data(),
+                  let participants = data["participants"] as? [String] else {
+                print("❌ Error getting chat participants: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+            
+            // Recipients are all participants except the sender
+            let recipients = participants.filter { $0 != currentUser.uid }
+            
+            let message = Message(
+                content: content,
+                senderId: currentUser.uid,
+                chatId: chatId,
+                type: type,
+                mediaURL: mediaURL,
+                recipients: recipients
+            )
+            
+            self?.sendMessageToFirestore(message)
         }
-        messages[chatId]?.append(message)
+    }
+    
+    private func sendMessageToFirestore(_ message: Message) {
+        // Optimistic update
+        if messages[message.chatId] == nil {
+            messages[message.chatId] = []
+        }
+        messages[message.chatId]?.append(message)
         
         // Send to Firestore
         db.collection("messages").document(message.id).setData(message.toDictionary()) { [weak self] error in
@@ -157,7 +185,7 @@ class MessageService: ObservableObject {
                 if let error = error {
                     self?.errorMessage = "Failed to send message: \(error.localizedDescription)"
                     // Remove the optimistic update
-                    self?.messages[chatId]?.removeAll { $0.id == message.id }
+                    self?.messages[message.chatId]?.removeAll { $0.id == message.id }
                     return
                 }
                 
@@ -165,7 +193,10 @@ class MessageService: ObservableObject {
                 self?.updateMessageDeliveryStatus(messageId: message.id, status: .sent)
                 
                 // Update chat's last message
-                self?.updateChatLastMessage(chatId: chatId, message: message)
+                self?.updateChatLastMessage(chatId: message.chatId, message: message)
+                
+                // Send push notification to recipients
+                self?.sendNotificationToRecipients(message: message)
             }
         }
     }
@@ -191,6 +222,26 @@ class MessageService: ObservableObject {
         }
     }
     
+    private func sendNotificationToRecipients(message: Message) {
+        // Get sender's display name
+        db.collection("users").document(message.senderId).getDocument { [weak self] userDoc, userError in
+            guard let userDoc = userDoc,
+                  let userData = userDoc.data(),
+                  let senderName = userData["displayName"] as? String else {
+                return
+            }
+            
+            // Send notification to all recipients
+            for recipientId in message.recipients {
+                NotificationService.shared.sendMessageNotification(
+                    to: recipientId,
+                    message: message,
+                    senderName: senderName
+                )
+            }
+        }
+    }
+    
     func markMessageAsRead(messageId: String) {
         updateMessageDeliveryStatus(messageId: messageId, status: .read)
     }
@@ -203,9 +254,70 @@ class MessageService: ObservableObject {
             $0.senderId != currentUser.uid && $0.deliveryStatus != .read 
         }
         
+        print("📖 Marking \(unreadMessages.count) messages as read in chat \(chatId)")
+        
         for message in unreadMessages {
             markMessageAsRead(messageId: message.id)
         }
+    }
+    
+    // MARK: - Unread Count Management
+    
+    private func updateUnreadCount() {
+        guard let currentUser = Auth.auth().currentUser else { return }
+        
+        var totalUnread = 0
+        for (_, messageList) in messages {
+            let unreadMessages = messageList.filter { 
+                $0.senderId != currentUser.uid && $0.deliveryStatus != .read 
+            }
+            totalUnread += unreadMessages.count
+        }
+        
+        DispatchQueue.main.async {
+            self.unreadCount = totalUnread
+        }
+    }
+    
+    // MARK: - Real-time Unread Count Monitoring
+    
+    private func startUnreadCountListener() {
+        guard let currentUser = Auth.auth().currentUser else { return }
+        
+        // Listen to all messages where current user is a recipient
+        db.collection("messages")
+            .whereField("recipients", arrayContains: currentUser.uid)
+            .addSnapshotListener { [weak self] snapshot, error in
+                if let error = error {
+                    print("❌ Error listening to unread messages: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else { return }
+                
+                // Filter for unread messages (not sent by current user and not read)
+                let unreadMessages = documents.filter { doc in
+                    let data = doc.data()
+                    let senderId = data["senderId"] as? String
+                    let deliveryStatus = data["deliveryStatus"] as? String
+                    return senderId != currentUser.uid && deliveryStatus != "read"
+                }
+                
+                // Group unread messages by chat
+                var chatCounts: [String: Int] = [:]
+                for message in unreadMessages {
+                    let data = message.data()
+                    if let chatId = data["chatId"] as? String {
+                        chatCounts[chatId, default: 0] += 1
+                    }
+                }
+                
+                DispatchQueue.main.async {
+                    self?.unreadCount = unreadMessages.count
+                    self?.chatUnreadCounts = chatCounts
+                    print("📊 Unread count updated: \(unreadMessages.count) across \(chatCounts.count) chats")
+                }
+            }
     }
     
     // MARK: - User Management

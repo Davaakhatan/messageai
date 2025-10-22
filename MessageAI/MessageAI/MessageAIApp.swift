@@ -3,6 +3,7 @@ import FirebaseCore
 import FirebaseAuth
 import FirebaseFirestore
 import FirebaseMessaging
+import UserNotifications
 
 @main
 struct MessageAIApp: App {
@@ -11,25 +12,24 @@ struct MessageAIApp: App {
     
     init() {
         // Configure Firebase with error handling
-        do {
-            FirebaseApp.configure()
-            setupPushNotifications()
-        } catch {
-            print("Firebase configuration failed: \(error)")
-            // Continue without Firebase for now
-        }
+        FirebaseApp.configure()
+        setupPushNotifications()
     }
     
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .environmentObject(authService)
-                .environmentObject(messageService)
-                .onAppear {
-                    authService.checkAuthStatus()
-                }
-        }
-    }
+           var body: some Scene {
+               WindowGroup {
+                   ContentView()
+                       .environmentObject(authService)
+                       .environmentObject(messageService)
+                       .environmentObject(SimulatorNotificationManager.shared)
+                       .onAppear {
+                           authService.checkAuthStatus()
+                           #if targetEnvironment(simulator)
+                           SimulatorNotificationManager.shared.startListeningForNotifications()
+                           #endif
+                       }
+               }
+           }
     
     private func setupPushNotifications() {
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
@@ -54,7 +54,12 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, Messagin
     }
     
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        // Handle notification tap
+        // Handle notification tap - navigate to specific chat
+        let userInfo = response.notification.request.content.userInfo
+        if let chatId = userInfo["chatId"] as? String {
+            // Store chatId for navigation when app opens
+            UserDefaults.standard.set(chatId, forKey: "pendingChatId")
+        }
         completionHandler()
     }
     

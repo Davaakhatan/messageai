@@ -29,28 +29,35 @@ struct MainTabView: View {
                     Text("Chats")
                 }
                 .tag(0)
-                .badge(messageService.chats.count)
+                .badge(messageService.unreadCount)
             
-            RemoteTeamAIView()
+            SmartSearchView()
                 .tabItem {
-                    Image(systemName: selectedTab == 1 ? "person.3.fill" : "person.3")
-                    Text("Team AI")
+                    Image(systemName: selectedTab == 1 ? "magnifyingglass.circle.fill" : "magnifyingglass.circle")
+                    Text("Search")
                 }
                 .tag(1)
             
-            AIAssistantView()
+            RemoteTeamAIView()
                 .tabItem {
-                    Image(systemName: selectedTab == 2 ? "brain.head.profile.fill" : "brain.head.profile")
-                    Text("AI Assistant")
+                    Image(systemName: selectedTab == 2 ? "person.3.fill" : "person.3")
+                    Text("Team AI")
                 }
                 .tag(2)
             
-            ProfileView()
+            AIAssistantView()
                 .tabItem {
-                    Image(systemName: selectedTab == 3 ? "person.circle.fill" : "person.circle")
-                    Text("Profile")
+                    Image(systemName: selectedTab == 3 ? "brain.head.profile.fill" : "brain.head.profile")
+                    Text("AI Assistant")
                 }
                 .tag(3)
+            
+            ProfileView()
+                .tabItem {
+                    Image(systemName: selectedTab == 4 ? "person.circle.fill" : "person.circle")
+                    Text("Profile")
+                }
+                .tag(4)
         }
         .accentColor(.blue)
         .onAppear {
