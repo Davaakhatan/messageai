@@ -174,6 +174,9 @@ class MessageService: ObservableObject {
                 senderName: self?.userService.getUserName(for: currentUser.uid) ?? "User"
             )
             
+            // When sending a message, automatically mark all previous messages as read by this user
+            self?.markAllMessagesAsReadBySender(in: chatId, senderId: currentUser.uid)
+            
             self?.sendMessageToFirestore(message)
         }
     }
@@ -323,6 +326,50 @@ class MessageService: ObservableObject {
                         print("❌ Error marking messages as read: \(error.localizedDescription)")
                     } else {
                         print("✅ Successfully marked \(unreadMessages.count) messages as read in Firestore")
+                    }
+                }
+            }
+    }
+    
+    func markAllMessagesAsReadBySender(in chatId: String, senderId: String) {
+        print("📖 Marking all messages as read by sender \(senderId) in chat \(chatId)")
+        
+        // Update Firestore to mark all messages in this chat as read by the sender
+        db.collection("messages")
+            .whereField("chatId", isEqualTo: chatId)
+            .whereField("senderId", isNotEqualTo: senderId) // Only messages from other users
+            .getDocuments { [weak self] snapshot, error in
+                if let error = error {
+                    print("❌ Error getting messages to mark as read by sender: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else { return }
+                
+                print("📖 Found \(documents.count) messages to mark as read by sender \(senderId)")
+                
+                if documents.isEmpty {
+                    print("✅ No messages to mark as read by sender")
+                    return
+                }
+                
+                // Update each message in a batch
+                let batch = self?.db.batch()
+                for document in documents {
+                    let currentReadBy = document.data()["readBy"] as? [String] ?? []
+                    if !currentReadBy.contains(senderId) {
+                        let updatedReadBy = currentReadBy + [senderId]
+                        batch?.updateData([
+                            "readBy": updatedReadBy
+                        ], forDocument: document.reference)
+                    }
+                }
+                
+                batch?.commit { error in
+                    if let error = error {
+                        print("❌ Error marking messages as read by sender: \(error.localizedDescription)")
+                    } else {
+                        print("✅ Successfully marked \(documents.count) messages as read by sender \(senderId)")
                     }
                 }
             }
