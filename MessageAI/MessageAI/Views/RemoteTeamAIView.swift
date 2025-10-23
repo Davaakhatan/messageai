@@ -13,57 +13,114 @@ struct RemoteTeamAIView: View {
     @State private var showingSmartSearch = false
     @State private var projectName = ""
     @State private var animateCards = false
+    @State private var showingAPIKeyAlert = false
+    @State private var apiKey = ""
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 0) {
-                    // Modern Header with Gradient
-                    VStack(spacing: 16) {
-                        // Hero Section
-                        VStack(spacing: 12) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Team AI Assistant")
-                                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                                        .foregroundStyle(
-                                            LinearGradient(
-                                                colors: [.blue, .purple],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
+                        // API Key Status Check
+                        if UserDefaults.standard.string(forKey: "openai_api_key") == nil {
+                            VStack(spacing: 16) {
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(.orange)
                                     
-                                    Text("AI-powered collaboration tools for remote teams")
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                Spacer()
-                                
-                                // AI Status Indicator
-                                HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(Color.green)
-                                        .frame(width: 8, height: 8)
-                                        .scaleEffect(animateCards ? 1.2 : 1.0)
-                                        .animation(.easeInOut(duration: 1.5).repeatForever(), value: animateCards)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("OpenAI API Key Required")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.orange)
+                                        
+                                        Text("Configure your API key to unlock Team AI features")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
                                     
-                                    Text("AI Active")
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(.green)
+                                    Spacer()
                                 }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
+                                .padding(16)
                                 .background(
-                                    Capsule()
-                                        .fill(Color.green.opacity(0.1))
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.orange.opacity(0.1))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                        )
                                 )
+                                
+                                Button(action: {
+                                    showingAPIKeyAlert = true
+                                }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "key.fill")
+                                        Text("Configure API Key")
+                                    }
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 12)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [.orange, .red],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .clipShape(Capsule())
+                                }
                             }
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 10)
+                        } else {
+                            // Modern Header with Gradient
+                            VStack(spacing: 16) {
+                                // Hero Section
+                                VStack(spacing: 12) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text("Team AI Assistant")
+                                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                                .foregroundStyle(
+                                                    LinearGradient(
+                                                        colors: [.blue, .purple],
+                                                        startPoint: .leading,
+                                                        endPoint: .trailing
+                                                    )
+                                                )
+                                            
+                                            Text("AI-powered collaboration tools for remote teams")
+                                                .font(.system(size: 16, weight: .medium))
+                                                .foregroundColor(.secondary)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        // AI Status Indicator
+                                        HStack(spacing: 8) {
+                                            Circle()
+                                                .fill(Color.green)
+                                                .frame(width: 8, height: 8)
+                                                .scaleEffect(animateCards ? 1.2 : 1.0)
+                                                .animation(.easeInOut(duration: 1.5).repeatForever(), value: animateCards)
+                                            
+                                            Text("AI Active")
+                                                .font(.caption)
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.green)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(
+                                            Capsule()
+                                                .fill(Color.green.opacity(0.1))
+                                        )
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.top, 10)
                 
                         // Chat Selection Section
                         if !messageService.chats.isEmpty {
@@ -271,6 +328,7 @@ struct RemoteTeamAIView: View {
                             }
                             .padding(.top, 20)
                         }
+                        }
                 
                         Spacer(minLength: 40)
                     }
@@ -282,6 +340,21 @@ struct RemoteTeamAIView: View {
                 withAnimation(.easeInOut(duration: 0.8)) {
                     animateCards = true
                 }
+            }
+            .alert("OpenAI API Key", isPresented: $showingAPIKeyAlert) {
+                TextField("Enter API Key", text: $apiKey)
+                    .keyboardType(.default)
+                    .autocapitalization(.none)
+                    .autocorrectionDisabled()
+                Button("Save") {
+                    aiService.setAPIKey(apiKey)
+                    apiKey = ""
+                }
+                Button("Cancel", role: .cancel) {
+                    apiKey = ""
+                }
+            } message: {
+                Text("Enter your OpenAI API key to enable Team AI features. You can get one from platform.openai.com")
             }
         }
         .sheet(isPresented: $showingMeetingSummary) {
