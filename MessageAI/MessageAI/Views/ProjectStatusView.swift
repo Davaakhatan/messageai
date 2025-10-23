@@ -640,58 +640,6 @@ struct ModernDependenciesCard: View {
     }
 }
 
-struct ModernErrorView: View {
-    let error: String
-    let onRetry: () -> Void
-    
-    var body: some View {
-        VStack(spacing: 24) {
-            ZStack {
-                Circle()
-                    .fill(Color.red.opacity(0.1))
-                    .frame(width: 100, height: 100)
-                
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(.red)
-            }
-            
-            VStack(spacing: 12) {
-                Text("Analysis Failed")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                
-                Text(error)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
-            }
-            
-            Button(action: onRetry) {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.clockwise")
-                    Text("Try Again")
-                }
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.white)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
-                .background(
-                    LinearGradient(
-                        colors: [.blue, .purple],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .clipShape(Capsule())
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-}
 
 struct ModernProjectInputView: View {
     @Binding var projectName: String

@@ -14,56 +14,47 @@ struct AIAssistantView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // API Key Status
-                if UserDefaults.standard.string(forKey: "openai_api_key") == nil {
-                    VStack {
-                        Text("⚠️ OpenAI API Key Required")
-                            .foregroundColor(.orange)
-                            .font(.headline)
-                        Text("Tap to configure your OpenAI API key for AI features")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Button("Add API Key") {
-                            showingAPIKeyAlert = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .padding()
-                    }
-                    .padding()
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
-                }
-                
-                // AI Conversation
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(conversationHistory) { message in
-                            AIBubbleView(message: message)
-                        }
-                        
-                        if isLoading {
-                            HStack {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                Text("AI is thinking...")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding()
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                }
-                
-                // AI Input
-                AIInputView(
-                    message: $aiMessage,
-                    onSend: sendToAI,
-                    isLoading: isLoading
+            ZStack {
+                // Background
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.blue.opacity(0.05), Color.purple.opacity(0.05)]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
                 )
+                .ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    // API Key Status
+                    if UserDefaults.standard.string(forKey: "openai_api_key") == nil {
+                        ModernAPIKeyWarning(
+                            onConfigure: {
+                                showingAPIKeyAlert = true
+                            }
+                        )
+                    }
+                    
+                    // AI Conversation
+                    ScrollView {
+                        LazyVStack(spacing: 16) {
+                            ForEach(conversationHistory) { message in
+                                ModernAIBubbleView(message: message)
+                            }
+                            
+                            if isLoading {
+                                ModernAILoadingView()
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                    }
+                    
+                    // AI Input
+                    ModernAIInputView(
+                        message: $aiMessage,
+                        onSend: sendToAI,
+                        isLoading: isLoading
+                    )
+                }
             }
             .navigationTitle("AI Assistant")
             .navigationBarTitleDisplayMode(.large)
@@ -72,6 +63,7 @@ struct AIAssistantView: View {
                     Button("Settings") {
                         showingAPIKeyAlert = true
                     }
+                    .fontWeight(.medium)
                 }
             }
             .onAppear {
@@ -182,40 +174,168 @@ struct AIAssistantView: View {
     }
 }
 
-struct AIMessage: Identifiable {
-    let id = UUID()
-    let content: String
-    let isFromUser: Bool
-    let timestamp: Date
+// MARK: - Modern Component Views
+
+struct ModernAPIKeyWarning: View {
+    let onConfigure: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.orange)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("OpenAI API Key Required")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Text("Configure your API key to enable AI features")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+            
+            Button(action: onConfigure) {
+                HStack(spacing: 6) {
+                    Image(systemName: "key.fill")
+                    Text("Configure")
+                }
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(
+                    LinearGradient(
+                        colors: [.orange, .red],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(Capsule())
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.orange.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+    }
 }
 
-struct AIBubbleView: View {
+struct ModernAIBubbleView: View {
     let message: AIMessage
     
     var body: some View {
-        HStack {
-            if message.isFromUser {
-                Spacer()
-            }
-            
-            VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 4) {
-                Text(message.content)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(
-                        message.isFromUser ? Color.blue : Color.gray.opacity(0.2)
-                    )
-                    .foregroundColor(message.isFromUser ? .white : .primary)
-                    .cornerRadius(18)
-                
-                Text(formatTime(message.timestamp))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 4)
-            }
-            
+        HStack(alignment: .top, spacing: 12) {
             if !message.isFromUser {
-                Spacer()
+                // AI Avatar
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 32, height: 32)
+                    
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                }
+            }
+            
+            VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 8) {
+                // Message Content
+                Text(message.content)
+                    .font(.body)
+                    .foregroundColor(message.isFromUser ? .white : .primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18)
+                            .fill(
+                                message.isFromUser 
+                                    ? AnyShapeStyle(LinearGradient(
+                                        colors: [.blue, .purple],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ))
+                                    : AnyShapeStyle(Color(.systemBackground))
+                            )
+                            .shadow(
+                                color: message.isFromUser ? .blue.opacity(0.3) : .black.opacity(0.05),
+                                radius: message.isFromUser ? 8 : 2,
+                                x: 0,
+                                y: message.isFromUser ? 4 : 1
+                            )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(
+                                message.isFromUser ? Color.clear : Color.gray.opacity(0.2),
+                                lineWidth: 1
+                            )
+                    )
+                
+                // Timestamp
+                HStack {
+                    if message.isFromUser {
+                        Spacer()
+                    }
+                    
+                    Text(formatTime(message.timestamp))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(Color.gray.opacity(0.1))
+                        )
+                    
+                    if !message.isFromUser {
+                        Spacer()
+                    }
+                }
+            }
+            
+            if message.isFromUser {
+                // User Avatar
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.green, .blue],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 32, height: 32)
+                    
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                }
             }
         }
     }
@@ -227,31 +347,126 @@ struct AIBubbleView: View {
     }
 }
 
-struct AIInputView: View {
+struct ModernAILoadingView: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // AI Avatar
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.blue, .purple],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 32, height: 32)
+                
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    ForEach(0..<3) { index in
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(1.0)
+                            .animation(
+                                .easeInOut(duration: 0.6)
+                                .repeatForever()
+                                .delay(Double(index) * 0.2),
+                                value: true
+                            )
+                    }
+                    
+                    Text("AI is thinking...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
+            }
+            
+            Spacer()
+        }
+    }
+}
+
+struct ModernAIInputView: View {
     @Binding var message: String
     let onSend: () -> Void
     let isLoading: Bool
     
     var body: some View {
-        HStack(spacing: 12) {
-            TextField("Ask AI anything...", text: $message)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .keyboardType(.default)
-                .onSubmit {
-                    onSend()
-                }
+        VStack(spacing: 0) {
+            Divider()
+                .background(Color.gray.opacity(0.2))
             
-            Button(action: onSend) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(message.isEmpty || isLoading ? .gray : .blue)
+            HStack(spacing: 12) {
+                // Input Field
+                HStack(spacing: 8) {
+                    TextField("Ask AI anything...", text: $message, axis: .vertical)
+                        .font(.body)
+                        .lineLimit(1...4)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color(.systemGray6))
+                        )
+                        .onSubmit {
+                            if !message.isEmpty && !isLoading {
+                                onSend()
+                            }
+                        }
+                    
+                    // Send Button
+                    Button(action: onSend) {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    message.isEmpty || isLoading
+                                        ? AnyShapeStyle(Color.gray.opacity(0.3))
+                                        : AnyShapeStyle(LinearGradient(
+                                            colors: [.blue, .purple],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ))
+                                )
+                                .frame(width: 36, height: 36)
+                            
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(message.isEmpty || isLoading ? .gray : .white)
+                        }
+                    }
+                    .disabled(message.isEmpty || isLoading)
+                }
             }
-            .disabled(message.isEmpty || isLoading)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(Color(.systemBackground))
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color(.systemBackground))
     }
+}
+
+struct AIMessage: Identifiable {
+    let id = UUID()
+    let content: String
+    let isFromUser: Bool
+    let timestamp: Date
 }
 
 #Preview {
