@@ -4,174 +4,285 @@ import FirebaseAuth
 struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
     @StateObject private var settingsManager = SettingsManager.shared
+    @State private var showingDeleteAlert = false
+    @State private var showingSignOutAlert = false
     
     var body: some View {
-            List {
-            // MARK: - Notifications Section
-            Section("Notifications") {
-                Toggle("Enable Notifications", isOn: $settingsManager.notificationsEnabled)
-                Toggle("Sound", isOn: $settingsManager.soundEnabled)
-                    .disabled(!settingsManager.notificationsEnabled)
-                Toggle("Vibration", isOn: $settingsManager.vibrationEnabled)
-                    .disabled(!settingsManager.notificationsEnabled)
-                Toggle("Show Preview", isOn: $settingsManager.notificationsEnabled)
-                    .disabled(!settingsManager.notificationsEnabled)
-            }
-            
-            // MARK: - Appearance Section
-            Section("Appearance") {
-                Toggle("Dark Mode", isOn: $settingsManager.isDarkMode)
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Font Size")
-                        Spacer()
-                        Text("\(settingsManager.fontSize)pt")
-                            .foregroundColor(.secondary)
-                    }
-                    Slider(value: Binding(
-                        get: { Double(settingsManager.fontSize) ?? 16 },
-                        set: { settingsManager.fontSize = "\(Int($0))" }
-                    ), in: 12...20, step: 1)
-                }
-            }
-            
-            // MARK: - Privacy & Security Section
-            Section("Privacy & Security") {
-                    NavigationLink(destination: PrivacySettingsView()) {
-                        HStack {
-                        Image(systemName: "lock.shield")
-                                .foregroundColor(.blue)
-                        Text("Privacy Settings")
-                    }
-                }
-                
-                NavigationLink(destination: BlockedUsersView()) {
-                        HStack {
-                        Image(systemName: "hand.raised")
-                            .foregroundColor(.red)
-                        Text("Blocked Users")
-                    }
-                }
-            }
-            
-            // MARK: - AI Features Section
-            Section("AI Features") {
-                Toggle("Enable AI Features", isOn: $settingsManager.aiFeaturesEnabled)
-                Toggle("Auto Sync", isOn: $settingsManager.autoSyncEnabled)
-            }
-            
-            // MARK: - Chat Settings Section
-            Section("Chat Settings") {
-                NavigationLink(destination: Text("Chat Backup")) {
-                        HStack {
-                        Image(systemName: "arrow.up.doc")
-                            .foregroundColor(.green)
-                        Text("Chat Backup")
-                    }
-                }
-                
-                NavigationLink(destination: Text("Archive Chats")) {
-                        HStack {
-                        Image(systemName: "archivebox")
-                                .foregroundColor(.orange)
-                        Text("Archived Chats")
-                    }
-                }
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // MARK: - Profile Header
+                    profileHeader
                     
-                Button(action: {
-                    clearCache()
-                }) {
-                        HStack {
-                            Image(systemName: "trash")
-                                .foregroundColor(.red)
-                        Text("Clear Cache")
-                            .foregroundColor(.primary)
-                    }
+                    // MARK: - Quick Settings
+                    quickSettingsCard
+                    
+                    // MARK: - Main Settings
+                    mainSettingsCard
+                    
+                    // MARK: - Account Actions
+                    accountActionsCard
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.large)
+        }
+        .alert("Delete Account", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                deleteAccount()
+            }
+        } message: {
+            Text("Are you sure you want to delete your account? This action cannot be undone and will permanently remove all your data.")
+        }
+        .alert("Sign Out", isPresented: $showingSignOutAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Sign Out", role: .destructive) {
+                signOut()
+            }
+        } message: {
+            Text("Are you sure you want to sign out?")
+        }
+    }
+    
+    // MARK: - Profile Header
+    private var profileHeader: some View {
+        VStack(spacing: 16) {
+            // Profile Image
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(
+                        gradient: Gradient(colors: [.blue, .purple]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 80, height: 80)
+                
+                Text((authService.currentUser?.displayName ?? "User").prefix(1).uppercased())
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundColor(.white)
             }
             
-            // MARK: - Storage Section
-            Section("Storage") {
-                HStack {
-                    Text("Storage Used")
-                    Spacer()
-                    Text("24.5 MB")
-                        .foregroundColor(.secondary)
-                }
+            VStack(spacing: 4) {
+                Text(authService.currentUser?.displayName ?? "User")
+                    .font(.title2)
+                    .fontWeight(.semibold)
                 
-                Button(action: {
-                    manageStorage()
-                }) {
-                    HStack {
-                        Image(systemName: "externaldrive")
-                            .foregroundColor(.blue)
-                        Text("Manage Storage")
-                            .foregroundColor(.primary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            
-            // MARK: - About Section
-            Section("About") {
-                HStack {
-                    Text("Version")
-                    Spacer()
-                    Text("1.0.0")
-                        .foregroundColor(.secondary)
-                }
-                
-                NavigationLink(destination: Text("Terms of Service")) {
-                    Text("Terms of Service")
-                }
-                
-                NavigationLink(destination: Text("Privacy Policy")) {
-                    Text("Privacy Policy")
-                }
-                
-                NavigationLink(destination: HelpSupportView()) {
-                    Text("Help & Support")
-                }
-            }
-            
-            // MARK: - Account Actions
-            Section {
-                Button(action: {
-                    signOut()
-                }) {
-                    HStack {
-                        Image(systemName: "arrow.right.square")
-                            .foregroundColor(.blue)
-                        Text("Sign Out")
-                            .foregroundColor(.primary)
-                    }
-                }
-            }
-            
-            // MARK: - Danger Zone
-            Section {
-                Button(action: {
-                    deleteAccount()
-                }) {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.red)
-                        Text("Delete Account")
-                            .foregroundColor(.red)
-                    }
-                }
-            } footer: {
-                Text("Deleting your account will permanently remove all your data and cannot be undone.")
-                    .font(.caption)
+                Text(authService.currentUser?.email ?? "")
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
             }
         }
-        .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.large)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+        )
+    }
+    
+    // MARK: - Quick Settings
+    private var quickSettingsCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Quick Settings")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 4)
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
+                QuickSettingButton(
+                    icon: "bell.fill",
+                    title: "Notifications",
+                    isEnabled: settingsManager.notificationsEnabled,
+                    color: .blue
+                ) {
+                    settingsManager.notificationsEnabled.toggle()
+                }
+                
+                QuickSettingButton(
+                    icon: "moon.fill",
+                    title: "Dark Mode",
+                    isEnabled: settingsManager.isDarkMode,
+                    color: .purple
+                ) {
+                    settingsManager.isDarkMode.toggle()
+                }
+                
+                QuickSettingButton(
+                    icon: "brain.head.profile",
+                    title: "AI Features",
+                    isEnabled: settingsManager.aiFeaturesEnabled,
+                    color: .green
+                ) {
+                    settingsManager.aiFeaturesEnabled.toggle()
+                }
+                
+                QuickSettingButton(
+                    icon: "arrow.triangle.2.circlepath",
+                    title: "Auto Sync",
+                    isEnabled: settingsManager.autoSyncEnabled,
+                    color: .orange
+                ) {
+                    settingsManager.autoSyncEnabled.toggle()
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+        )
+    }
+    
+    // MARK: - Main Settings
+    private var mainSettingsCard: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Settings")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 4)
+            
+            VStack(spacing: 0) {
+                // Notifications Section
+                SettingsRow(
+                    icon: "bell.fill",
+                    title: "Notifications",
+                    subtitle: "Manage your notification preferences",
+                    color: .blue
+                ) {
+                    NotificationSettingsView()
+                }
+                
+                Divider().padding(.leading, 48)
+                
+                // Appearance Section
+                SettingsRow(
+                    icon: "paintbrush.fill",
+                    title: "Appearance",
+                    subtitle: "Customize your app's look and feel",
+                    color: .purple
+                ) {
+                    AppearanceSettingsView()
+                }
+                
+                Divider().padding(.leading, 48)
+                
+                // Privacy Section
+                SettingsRow(
+                    icon: "lock.shield.fill",
+                    title: "Privacy & Security",
+                    subtitle: "Control your privacy settings",
+                    color: .green
+                ) {
+                    PrivacySettingsView()
+                }
+                
+                Divider().padding(.leading, 48)
+                
+                // Storage Section
+                SettingsRow(
+                    icon: "externaldrive.fill",
+                    title: "Storage",
+                    subtitle: "Manage your app's storage usage",
+                    color: .orange
+                ) {
+                    StorageSettingsView()
+                }
+                
+                Divider().padding(.leading, 48)
+                
+                // Help Section
+                SettingsRow(
+                    icon: "questionmark.circle.fill",
+                    title: "Help & Support",
+                    subtitle: "Get help and contact support",
+                    color: .blue
+                ) {
+                    HelpSupportView()
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+        )
+    }
+    
+    // MARK: - Account Actions
+    private var accountActionsCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Account")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 4)
+            
+            VStack(spacing: 0) {
+                Button(action: {
+                    showingSignOutAlert = true
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "arrow.right.square.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.blue)
+                            .frame(width: 24)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Sign Out")
+                                .font(.body)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                            
+                            Text("Sign out of your account")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.vertical, 12)
+                }
+                
+                Divider().padding(.leading, 48)
+                
+                Button(action: {
+                    showingDeleteAlert = true
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.red)
+                            .frame(width: 24)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Delete Account")
+                                .font(.body)
+                                .fontWeight(.medium)
+                                .foregroundColor(.red)
+                            
+                            Text("Permanently delete your account")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.vertical, 12)
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+        )
     }
     
     // MARK: - Functional Methods
@@ -337,9 +448,210 @@ struct BlockedUsersView: View {
     }
 }
 
+// MARK: - Supporting Components
+
+struct QuickSettingButton: View {
+    let icon: String
+    let title: String
+    let isEnabled: Bool
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isEnabled ? color.opacity(0.1) : Color.gray.opacity(0.1))
+                        .frame(height: 50)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(isEnabled ? color : .gray)
+                }
+                
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct SettingsRow<Destination: View>: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let color: Color
+    let destination: () -> Destination
+    
+    var body: some View {
+        NavigationLink(destination: destination()) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(color)
+                    .frame(width: 24)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 12)
+        }
+    }
+}
+
+// MARK: - Settings Sub-Views
+
+struct NotificationSettingsView: View {
+    @StateObject private var settingsManager = SettingsManager.shared
+    
+    var body: some View {
+        List {
+            Section("Notifications") {
+                Toggle("Enable Notifications", isOn: $settingsManager.notificationsEnabled)
+                Toggle("Sound", isOn: $settingsManager.soundEnabled)
+                    .disabled(!settingsManager.notificationsEnabled)
+                Toggle("Vibration", isOn: $settingsManager.vibrationEnabled)
+                    .disabled(!settingsManager.notificationsEnabled)
+                Toggle("Show Preview", isOn: $settingsManager.notificationsEnabled)
+                    .disabled(!settingsManager.notificationsEnabled)
+            }
+        }
+        .navigationTitle("Notifications")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct AppearanceSettingsView: View {
+    @StateObject private var settingsManager = SettingsManager.shared
+    
+    var body: some View {
+        List {
+            Section("Theme") {
+                Toggle("Dark Mode", isOn: $settingsManager.isDarkMode)
+            }
+            
+            Section("Typography") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Font Size")
+                        Spacer()
+                        Text("\(settingsManager.fontSize)pt")
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: Binding(
+                        get: { Double(settingsManager.fontSize) ?? 16 },
+                        set: { settingsManager.fontSize = "\(Int($0))" }
+                    ), in: 12...20, step: 1)
+                }
+            }
+        }
+        .navigationTitle("Appearance")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct StorageSettingsView: View {
+    @State private var storageUsed: String = "24.5 MB"
+    
+    var body: some View {
+        List {
+            Section("Storage Usage") {
+                HStack {
+                    Text("Storage Used")
+                    Spacer()
+                    Text(storageUsed)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Section("Actions") {
+                Button("Clear Cache") {
+                    clearCache()
+                }
+                .foregroundColor(.blue)
+                
+                Button("Manage Storage") {
+                    manageStorage()
+                }
+                .foregroundColor(.blue)
+            }
+        }
+        .navigationTitle("Storage")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private func clearCache() {
+        // Clear UserDefaults cache
+        let defaults = UserDefaults.standard
+        let keys = ["cachedMessages", "cachedChats", "cachedUsers"]
+        for key in keys {
+            defaults.removeObject(forKey: key)
+        }
+        
+        // Clear temporary files
+        let tempDir = FileManager.default.temporaryDirectory
+        try? FileManager.default.removeItem(at: tempDir)
+        
+        print("✅ Cache cleared successfully")
+    }
+    
+    private func manageStorage() {
+        // Calculate storage usage
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let cachePath = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        
+        var totalSize: Int64 = 0
+        
+        // Calculate documents size
+        if let enumerator = FileManager.default.enumerator(at: documentsPath, includingPropertiesForKeys: [.fileSizeKey]) {
+            for case let fileURL as URL in enumerator {
+                if let fileSize = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                    totalSize += Int64(fileSize)
+                }
+            }
+        }
+        
+        // Calculate cache size
+        if let enumerator = FileManager.default.enumerator(at: cachePath, includingPropertiesForKeys: [.fileSizeKey]) {
+            for case let fileURL as URL in enumerator {
+                if let fileSize = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                    totalSize += Int64(fileSize)
+                }
+            }
+        }
+        
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useMB, .useGB]
+        formatter.countStyle = .file
+        let sizeString = formatter.string(fromByteCount: totalSize)
+        
+        storageUsed = sizeString
+        print("📱 Storage usage: \(sizeString)")
+    }
+}
+
 #Preview {
     NavigationView {
-    SettingsView()
-        .environmentObject(AuthService())
+        SettingsView()
+            .environmentObject(AuthService())
     }
 }
