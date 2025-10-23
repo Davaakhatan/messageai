@@ -13,6 +13,8 @@ struct Message: Codable, Identifiable, Equatable {
     let mediaURL: String?
     let replyToMessageId: String?
     let recipients: [String] // Array of user IDs who should receive this message
+    let senderName: String? // Display name of the sender
+    let readBy: [String] // Array of user IDs who have read this message
     
     init(
         id: String = UUID().uuidString,
@@ -24,7 +26,9 @@ struct Message: Codable, Identifiable, Equatable {
         deliveryStatus: DeliveryStatus = .sending,
         mediaURL: String? = nil,
         replyToMessageId: String? = nil,
-        recipients: [String] = []
+        recipients: [String] = [],
+        senderName: String? = nil,
+        readBy: [String] = []
     ) {
         self.id = id
         self.content = content
@@ -36,6 +40,8 @@ struct Message: Codable, Identifiable, Equatable {
         self.mediaURL = mediaURL
         self.replyToMessageId = replyToMessageId
         self.recipients = recipients
+        self.senderName = senderName
+        self.readBy = readBy
     }
     
     enum MessageType: String, Codable, CaseIterable {
@@ -107,6 +113,8 @@ extension Message {
         self.mediaURL = data["mediaURL"] as? String
         self.replyToMessageId = data["replyToMessageId"] as? String
         self.recipients = data["recipients"] as? [String] ?? []
+        self.senderName = data["senderName"] as? String
+        self.readBy = data["readBy"] as? [String] ?? []
     }
     
     func toDictionary() -> [String: Any] {
@@ -119,7 +127,9 @@ extension Message {
             "deliveryStatus": deliveryStatus.rawValue,
             "mediaURL": mediaURL as Any,
             "replyToMessageId": replyToMessageId as Any,
-            "recipients": recipients
+            "recipients": recipients,
+            "senderName": senderName as Any,
+            "readBy": readBy
         ]
     }
 }

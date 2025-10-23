@@ -93,14 +93,14 @@ struct ProfileView: View {
                     
                     Divider()
                     
-                    NavigationLink(destination: HelpSupportView()) {
+                    NavigationLink(destination: MockTestingView()) {
                         HStack(spacing: 16) {
-                            Image(systemName: "questionmark.circle")
+                            Image(systemName: "wrench.and.screwdriver")
                                 .font(.title2)
-                                .foregroundColor(.blue)
+                                .foregroundColor(.orange)
                                 .frame(width: 24)
                             
-                            Text("Help & Support")
+                            Text("Mock Testing")
                                 .font(.body)
                                 .foregroundColor(.primary)
                             
@@ -114,6 +114,7 @@ struct ProfileView: View {
                         .padding(.vertical, 12)
                     }
                     .buttonStyle(PlainButtonStyle())
+                    
                 }
                 .background(Color(.systemBackground))
                 .cornerRadius(12)

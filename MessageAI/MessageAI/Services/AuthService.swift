@@ -223,6 +223,16 @@ class AuthService: ObservableObject {
                     return
                 }
                 
+                // Update UserService cache
+                let user = User(
+                    id: uid,
+                    displayName: finalDisplayName,
+                    email: email,
+                    isOnline: true,
+                    lastSeen: Date()
+                )
+                UserService.shared.users[uid] = user
+                
                 print("✅ User profile saved successfully")
                 // Load the updated user data
                 self?.loadUserData(uid: uid)

@@ -3,6 +3,7 @@ import FirebaseAuth
 
 struct ContentView: View {
     @EnvironmentObject var authService: AuthService
+    @StateObject private var settingsManager = SettingsManager.shared
     @State private var showingLogin = false
     
     var body: some View {
@@ -14,6 +15,7 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut, value: authService.isAuthenticated)
+        .preferredColorScheme(settingsManager.isDarkMode ? .dark : .light)
     }
 }
 

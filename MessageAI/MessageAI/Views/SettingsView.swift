@@ -1,54 +1,53 @@
 import SwiftUI
+import FirebaseAuth
 
 struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
-    @State private var notificationsEnabled = true
-    @State private var soundEnabled = true
-    @State private var vibrationEnabled = true
-    @State private var showPreview = true
-    @State private var darkModeEnabled = false
-    @State private var fontSize: Double = 16
+    @StateObject private var settingsManager = SettingsManager.shared
     
     var body: some View {
-        List {
+            List {
             // MARK: - Notifications Section
             Section("Notifications") {
-                Toggle("Enable Notifications", isOn: $notificationsEnabled)
-                Toggle("Sound", isOn: $soundEnabled)
-                    .disabled(!notificationsEnabled)
-                Toggle("Vibration", isOn: $vibrationEnabled)
-                    .disabled(!notificationsEnabled)
-                Toggle("Show Preview", isOn: $showPreview)
-                    .disabled(!notificationsEnabled)
+                Toggle("Enable Notifications", isOn: $settingsManager.notificationsEnabled)
+                Toggle("Sound", isOn: $settingsManager.soundEnabled)
+                    .disabled(!settingsManager.notificationsEnabled)
+                Toggle("Vibration", isOn: $settingsManager.vibrationEnabled)
+                    .disabled(!settingsManager.notificationsEnabled)
+                Toggle("Show Preview", isOn: $settingsManager.notificationsEnabled)
+                    .disabled(!settingsManager.notificationsEnabled)
             }
             
             // MARK: - Appearance Section
             Section("Appearance") {
-                Toggle("Dark Mode", isOn: $darkModeEnabled)
+                Toggle("Dark Mode", isOn: $settingsManager.isDarkMode)
                 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Font Size")
                         Spacer()
-                        Text("\(Int(fontSize))pt")
+                        Text("\(settingsManager.fontSize)pt")
                             .foregroundColor(.secondary)
                     }
-                    Slider(value: $fontSize, in: 12...20, step: 1)
+                    Slider(value: Binding(
+                        get: { Double(settingsManager.fontSize) ?? 16 },
+                        set: { settingsManager.fontSize = "\(Int($0))" }
+                    ), in: 12...20, step: 1)
                 }
             }
             
             // MARK: - Privacy & Security Section
             Section("Privacy & Security") {
-                NavigationLink(destination: PrivacySettingsView()) {
-                    HStack {
+                    NavigationLink(destination: PrivacySettingsView()) {
+                        HStack {
                         Image(systemName: "lock.shield")
-                            .foregroundColor(.blue)
+                                .foregroundColor(.blue)
                         Text("Privacy Settings")
                     }
                 }
                 
                 NavigationLink(destination: BlockedUsersView()) {
-                    HStack {
+                        HStack {
                         Image(systemName: "hand.raised")
                             .foregroundColor(.red)
                         Text("Blocked Users")
@@ -56,10 +55,16 @@ struct SettingsView: View {
                 }
             }
             
+            // MARK: - AI Features Section
+            Section("AI Features") {
+                Toggle("Enable AI Features", isOn: $settingsManager.aiFeaturesEnabled)
+                Toggle("Auto Sync", isOn: $settingsManager.autoSyncEnabled)
+            }
+            
             // MARK: - Chat Settings Section
             Section("Chat Settings") {
                 NavigationLink(destination: Text("Chat Backup")) {
-                    HStack {
+                        HStack {
                         Image(systemName: "arrow.up.doc")
                             .foregroundColor(.green)
                         Text("Chat Backup")
@@ -67,19 +72,19 @@ struct SettingsView: View {
                 }
                 
                 NavigationLink(destination: Text("Archive Chats")) {
-                    HStack {
+                        HStack {
                         Image(systemName: "archivebox")
-                            .foregroundColor(.orange)
+                                .foregroundColor(.orange)
                         Text("Archived Chats")
                     }
                 }
-                
+                    
                 Button(action: {
-                    // Clear cache action
+                    clearCache()
                 }) {
-                    HStack {
-                        Image(systemName: "trash")
-                            .foregroundColor(.red)
+                        HStack {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
                         Text("Clear Cache")
                             .foregroundColor(.primary)
                     }
@@ -96,7 +101,7 @@ struct SettingsView: View {
                 }
                 
                 Button(action: {
-                    // Manage storage action
+                    manageStorage()
                 }) {
                     HStack {
                         Image(systemName: "externaldrive")
@@ -127,12 +132,30 @@ struct SettingsView: View {
                 NavigationLink(destination: Text("Privacy Policy")) {
                     Text("Privacy Policy")
                 }
+                
+                NavigationLink(destination: HelpSupportView()) {
+                    Text("Help & Support")
+                }
+            }
+            
+            // MARK: - Account Actions
+            Section {
+                Button(action: {
+                    signOut()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.right.square")
+                            .foregroundColor(.blue)
+                        Text("Sign Out")
+                            .foregroundColor(.primary)
+                    }
+                }
             }
             
             // MARK: - Danger Zone
             Section {
                 Button(action: {
-                    // Delete account action
+                    deleteAccount()
                 }) {
                     HStack {
                         Image(systemName: "exclamationmark.triangle")
@@ -149,6 +172,92 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
+    }
+    
+    // MARK: - Functional Methods
+    
+    private func clearCache() {
+        // Clear UserDefaults cache
+        let defaults = UserDefaults.standard
+        let keys = ["cachedMessages", "cachedChats", "cachedUsers"]
+        for key in keys {
+            defaults.removeObject(forKey: key)
+        }
+        
+        // Clear temporary files
+        let tempDir = FileManager.default.temporaryDirectory
+        try? FileManager.default.removeItem(at: tempDir)
+        
+        // Show success message
+        print("✅ Cache cleared successfully")
+    }
+    
+    private func signOut() {
+        authService.signOut()
+    }
+    
+    private func manageStorage() {
+        // Calculate storage usage
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let cachePath = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        
+        var totalSize: Int64 = 0
+        
+        // Calculate documents size
+        if let enumerator = FileManager.default.enumerator(at: documentsPath, includingPropertiesForKeys: [.fileSizeKey]) {
+            for case let fileURL as URL in enumerator {
+                if let fileSize = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                    totalSize += Int64(fileSize)
+                }
+            }
+        }
+        
+        // Calculate cache size
+        if let enumerator = FileManager.default.enumerator(at: cachePath, includingPropertiesForKeys: [.fileSizeKey]) {
+            for case let fileURL as URL in enumerator {
+                if let fileSize = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                    totalSize += Int64(fileSize)
+                }
+            }
+        }
+        
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useMB, .useGB]
+        formatter.countStyle = .file
+        let sizeString = formatter.string(fromByteCount: totalSize)
+        
+        print("📱 Storage usage: \(sizeString)")
+    }
+    
+    private func deleteAccount() {
+        // Show confirmation alert
+        let alert = UIAlertController(
+            title: "Delete Account",
+            message: "Are you sure you want to delete your account? This action cannot be undone.",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { _ in
+            // Delete user account
+            if let user = Auth.auth().currentUser {
+                user.delete { error in
+                    if let error = error {
+                        print("❌ Error deleting account: \(error.localizedDescription)")
+                    } else {
+                        print("✅ Account deleted successfully")
+                        // Sign out after deletion
+                        self.authService.signOut()
+                    }
+                }
+            }
+        })
+        
+        // Present alert
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first {
+            window.rootViewController?.present(alert, animated: true)
+        }
     }
 }
 
@@ -214,12 +323,12 @@ struct BlockedUsersView: View {
                         Text(user)
                             .font(.body)
                         
-                        Spacer()
+                    Spacer()
                         
                         Button("Unblock") {
                             // Unblock action
-                        }
-                        .foregroundColor(.blue)
+                }
+                .foregroundColor(.blue)
                     }
                 }
             }
@@ -230,7 +339,7 @@ struct BlockedUsersView: View {
 
 #Preview {
     NavigationView {
-        SettingsView()
-            .environmentObject(AuthService())
+    SettingsView()
+        .environmentObject(AuthService())
     }
 }

@@ -17,6 +17,7 @@ class MessageService: ObservableObject {
     private let db = Firestore.firestore()
     private var messageListeners: [String: ListenerRegistration] = [:]
     private var chatListener: ListenerRegistration?
+    private let userService = UserService.shared
     
     init() {
         // Skip Firebase initialization in preview mode
@@ -140,6 +141,10 @@ class MessageService: ObservableObject {
                     let messages = documents.compactMap { Message(from: $0) }
                     self?.messages[chatId] = messages
                     self?.updateUnreadCount()
+                    
+                    // Fetch user names for all unique senders
+                    let uniqueSenderIds = Set(messages.map { $0.senderId })
+                    self?.userService.fetchUsers(userIds: Array(uniqueSenderIds))
                 }
             }
     }
@@ -165,7 +170,8 @@ class MessageService: ObservableObject {
                 chatId: chatId,
                 type: type,
                 mediaURL: mediaURL,
-                recipients: recipients
+                recipients: recipients,
+                senderName: self?.userService.getUserName(for: currentUser.uid) ?? "User"
             )
             
             self?.sendMessageToFirestore(message)
@@ -302,7 +308,14 @@ class MessageService: ObservableObject {
                 // Update each unread message in a batch
                 let batch = self?.db.batch()
                 for document in unreadMessages {
-                    batch?.updateData(["deliveryStatus": "read"], forDocument: document.reference)
+                    let currentReadBy = document.data()["readBy"] as? [String] ?? []
+                    if !currentReadBy.contains(currentUser.uid) {
+                        let updatedReadBy = currentReadBy + [currentUser.uid]
+                        batch?.updateData([
+                            "deliveryStatus": "read",
+                            "readBy": updatedReadBy
+                        ], forDocument: document.reference)
+                    }
                 }
                 
                 batch?.commit { error in

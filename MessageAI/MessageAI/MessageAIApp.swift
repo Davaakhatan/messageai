@@ -54,9 +54,7 @@ struct MessageAIApp: App {
                    
                    if granted {
                        // Start listening for notifications
-                       #if targetEnvironment(simulator)
                        notificationManager.startListeningForNotifications()
-                       #endif
                        print("✅ Notification system initialized")
                    } else {
                        print("❌ Notification permission denied")

@@ -32,7 +32,9 @@ struct ChatView: View {
                         ForEach(messages) { message in
                             MessageBubbleView(
                                 message: message,
-                                isFromCurrentUser: message.senderId == authService.currentUser?.id
+                                isFromCurrentUser: message.senderId == authService.currentUser?.id,
+                                isGroupChat: chat.isGroup,
+                                chatParticipants: chat.participants
                             )
                             .id(message.id)
                         }
@@ -77,6 +79,9 @@ struct ChatView: View {
         }
         .onAppear {
             messageService.loadMessages(for: chat.id)
+            
+            // Fetch user names for all chat participants
+            UserService.shared.fetchUsers(userIds: chat.participants)
             
             // Mark messages as read immediately when chat is viewed
             messageService.markAllMessagesAsRead(in: chat.id)
@@ -134,11 +139,40 @@ struct ChatView: View {
 struct MessageBubbleView: View {
     let message: Message
     let isFromCurrentUser: Bool
+    let isGroupChat: Bool
+    let chatParticipants: [String]
     @State private var showingTimestamp = false
     @EnvironmentObject var authService: AuthService
+    @StateObject private var userService = UserService.shared
     
     private var isUnread: Bool {
         !isFromCurrentUser && message.deliveryStatus != .read
+    }
+    
+    private var senderDisplayName: String {
+        if let senderName = message.senderName, !senderName.isEmpty {
+            return senderName
+        } else {
+            // Try to get from UserService
+            if let user = userService.users[message.senderId] {
+                return user.displayName
+            } else {
+                // Fetch user if not cached
+                userService.fetchUser(userId: message.senderId)
+                return "User \(message.senderId.prefix(8))"
+            }
+        }
+    }
+    
+    private var readByNames: [String] {
+        return message.readBy.map { userId in
+            if let user = userService.users[userId] {
+                return user.displayName
+            } else {
+                userService.fetchUser(userId: userId)
+                return "User \(userId.prefix(8))"
+            }
+        }
     }
     
     var body: some View {
@@ -148,6 +182,17 @@ struct MessageBubbleView: View {
             }
             
             VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
+                // Sender Name (for group chats)
+                if isGroupChat && !isFromCurrentUser {
+                    HStack {
+                        Text(senderDisplayName)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                        Spacer()
+                    }
+                }
+                
                 // Message Content
                 Group {
                     if message.type == .image, let mediaURL = message.mediaURL {
@@ -210,6 +255,22 @@ struct MessageBubbleView: View {
                     }
                 }
                 .padding(.horizontal, 4)
+                
+                // Read Receipts (for group chats)
+                if isGroupChat && isFromCurrentUser && !message.readBy.isEmpty {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Read by \(message.readBy.count) of \(chatParticipants.count - 1)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        
+                        if showingTimestamp {
+                            Text("Read by: \(readByNames.joined(separator: ", "))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                }
             }
             
             if !isFromCurrentUser {
