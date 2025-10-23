@@ -281,51 +281,49 @@ class MessageService: ObservableObject {
             print("✅ Updated local cache with \(chatMessages.count) messages")
         }
         
-        // Then update Firestore
+        // Then update Firestore - get ALL messages in this chat
         db.collection("messages")
             .whereField("chatId", isEqualTo: chatId)
-            .whereField("recipients", arrayContains: currentUser.uid)
             .getDocuments { [weak self] snapshot, error in
                 if let error = error {
-                    print("❌ Error getting unread messages: \(error.localizedDescription)")
+                    print("❌ Error getting messages to mark as read: \(error.localizedDescription)")
                     return
                 }
                 
                 guard let documents = snapshot?.documents else { return }
                 
-                // Filter client-side for unread messages from other users
-                let unreadMessages = documents.filter { document in
-                    let data = document.data()
-                    let senderId = data["senderId"] as? String ?? ""
-                    let deliveryStatus = data["deliveryStatus"] as? String ?? ""
-                    return senderId != currentUser.uid && deliveryStatus != "read"
-                }
+                print("📖 Found \(documents.count) total messages in chat \(chatId)")
                 
-                print("📖 Found \(unreadMessages.count) unread messages to mark as read in Firestore")
-                
-                if unreadMessages.isEmpty {
-                    print("✅ No unread messages to mark as read in Firestore")
-                    return
-                }
-                
-                // Update each unread message in a batch
+                // Update each message to add current user to readBy array
                 let batch = self?.db.batch()
-                for document in unreadMessages {
-                    let currentReadBy = document.data()["readBy"] as? [String] ?? []
+                var messagesToUpdate = 0
+                
+                for document in documents {
+                    let data = document.data()
+                    let currentReadBy = data["readBy"] as? [String] ?? []
+                    
+                    // Only update if current user is not already in readBy array
                     if !currentReadBy.contains(currentUser.uid) {
                         let updatedReadBy = currentReadBy + [currentUser.uid]
                         batch?.updateData([
-                            "deliveryStatus": "read",
                             "readBy": updatedReadBy
                         ], forDocument: document.reference)
+                        messagesToUpdate += 1
                     }
+                }
+                
+                print("📖 Updating \(messagesToUpdate) messages to mark as read by \(currentUser.uid)")
+                
+                if messagesToUpdate == 0 {
+                    print("✅ No messages need to be updated - user already marked as read")
+                    return
                 }
                 
                 batch?.commit { error in
                     if let error = error {
                         print("❌ Error marking messages as read: \(error.localizedDescription)")
                     } else {
-                        print("✅ Successfully marked \(unreadMessages.count) messages as read in Firestore")
+                        print("✅ Successfully marked \(messagesToUpdate) messages as read by \(currentUser.uid)")
                     }
                 }
             }
