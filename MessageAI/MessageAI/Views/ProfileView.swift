@@ -1,6 +1,5 @@
 import SwiftUI
 import FirebaseAuth
-import UserNotifications
 
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
@@ -66,16 +65,6 @@ struct ProfileView: View {
                         icon: "bell",
                         title: "Notifications",
                         action: { }
-                    )
-                    
-                    Divider()
-                    
-                    ProfileOptionRow(
-                        icon: "bell.badge",
-                        title: "Test Notification",
-                        action: { 
-                            sendTestNotification()
-                        }
                     )
                     
                     Divider()
@@ -158,16 +147,6 @@ struct ProfileView: View {
                 Text("Are you sure you want to sign out?")
             }
         }
-    }
-    
-    // MARK: - Simple Notification Test
-    
-    private func sendTestNotification() {
-        print("🔔 Sending test notification...")
-        SimpleNotificationManager.shared.sendNotification(
-            title: "🔔 Test Notification",
-            body: "This is a test notification from MessageAI"
-        )
     }
 }
 
