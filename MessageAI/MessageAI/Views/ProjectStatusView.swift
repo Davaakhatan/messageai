@@ -10,6 +10,7 @@ struct ProjectStatusView: View {
     @State private var errorMessage: String?
     @State private var inputProjectName = ""
     @State private var showingProjectNameInput = false
+    @State private var showingProjectSelection = false
     
     var body: some View {
         NavigationView {
@@ -111,11 +112,13 @@ struct ProjectStatusView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { dismiss() }) {
+                    Button(action: { 
+                        showingProjectSelection = true
+                    }) {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 16, weight: .medium))
-                            Text("Back")
+                            Text("Projects")
                                 .font(.system(size: 16, weight: .medium))
                         }
                         .foregroundColor(.blue)
@@ -135,6 +138,15 @@ struct ProjectStatusView: View {
                 currentName: projectStatus?.projectName ?? inputProjectName,
                 onSave: { newName in
                     inputProjectName = newName
+                    generateProjectStatus()
+                }
+            )
+        }
+        .sheet(isPresented: $showingProjectSelection) {
+            ProjectSelectionView(
+                currentProjectName: projectStatus?.projectName ?? inputProjectName,
+                onProjectSelected: { selectedProject in
+                    inputProjectName = selectedProject
                     generateProjectStatus()
                 }
             )
@@ -828,6 +840,298 @@ struct ProjectNameInputSheet: View {
         }
         .onAppear {
             newName = currentName
+        }
+    }
+}
+
+struct ProjectSelectionView: View {
+    let currentProjectName: String
+    let onProjectSelected: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var newProjectName = ""
+    @State private var showingNewProjectInput = false
+    
+    // Sample projects - in a real app, this would come from your data source
+    private let sampleProjects = [
+        "Team Frontend",
+        "Mobile App Development", 
+        "Backend API",
+        "Database Migration",
+        "UI/UX Redesign",
+        "Testing & QA",
+        "DevOps Pipeline",
+        "Security Audit"
+    ]
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                // Background
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.blue.opacity(0.05), Color.purple.opacity(0.05)]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Header
+                        VStack(spacing: 16) {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 50))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.blue, .purple],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                            
+                            Text("Select Project")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            
+                            Text("Choose a project to analyze or create a new one")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.top, 20)
+                        
+                        // Current Project
+                        if !currentProjectName.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Current Project")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.green)
+                                    
+                                    Text(currentProjectName)
+                                        .font(.body)
+                                        .fontWeight(.medium)
+                                    
+                                    Spacer()
+                                    
+                                    Text("Active")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            Capsule()
+                                                .fill(Color.green.opacity(0.1))
+                                        )
+                                        .foregroundColor(.green)
+                                }
+                                .padding(16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.green.opacity(0.05))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.green.opacity(0.2), lineWidth: 1)
+                                        )
+                                )
+                            }
+                        }
+                        
+                        // Available Projects
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Available Projects")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            
+                            LazyVStack(spacing: 12) {
+                                ForEach(sampleProjects, id: \.self) { project in
+                                    ProjectSelectionCard(
+                                        projectName: project,
+                                        isCurrent: project == currentProjectName,
+                                        onSelect: {
+                                            onProjectSelected(project)
+                                            dismiss()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // Create New Project Button
+                        Button(action: {
+                            showingNewProjectInput = true
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.blue)
+                                
+                                Text("Create New Project")
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.blue)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.blue)
+                            }
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.blue.opacity(0.05))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.blue.opacity(0.2), lineWidth: 1)
+                                    )
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Spacer(minLength: 40)
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+            .navigationTitle("Projects")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .fontWeight(.medium)
+                }
+            }
+        }
+        .sheet(isPresented: $showingNewProjectInput) {
+            NewProjectInputSheet(
+                onProjectCreated: { newProject in
+                    onProjectSelected(newProject)
+                    dismiss()
+                }
+            )
+        }
+    }
+}
+
+struct ProjectSelectionCard: View {
+    let projectName: String
+    let isCurrent: Bool
+    let onSelect: () -> Void
+    
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: isCurrent ? [.green, .blue] : [.blue, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 40, height: 40)
+                    
+                    Image(systemName: isCurrent ? "checkmark" : "folder.fill")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(projectName)
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    
+                    Text(isCurrent ? "Currently analyzing" : "Click to analyze")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                if isCurrent {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.green)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct NewProjectInputSheet: View {
+    let onProjectCreated: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var projectName = ""
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                VStack(spacing: 12) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(.blue)
+                    
+                    Text("Create New Project")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                }
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Project Name")
+                        .font(.headline)
+                        .fontWeight(.medium)
+                    
+                    TextField("Enter project name", text: $projectName)
+                        .font(.body)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.systemGray6))
+                        )
+                }
+                
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle("New Project")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Create") {
+                        onProjectCreated(projectName)
+                        dismiss()
+                    }
+                    .fontWeight(.medium)
+                    .disabled(projectName.isEmpty)
+                }
+            }
         }
     }
 }
