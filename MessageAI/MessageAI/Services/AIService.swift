@@ -214,10 +214,17 @@ class AIService: ObservableObject {
     
     // 2. Smart Project Status Updates
     func generateProjectStatus(for chatId: String, projectName: String) async throws -> ProjectStatus {
-            let context = await getConversationContext(for: chatId)
+        let context = await getConversationContext(for: chatId)
+        let participants = Set(context.map { $0.senderId }).map { $0 }
+        
+        // Resolve user IDs to display names
+        let userNames = await resolveUserNames(for: participants)
         
         // Simulate AI analysis
         try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 second delay
+        
+        // Convert participant IDs to display names
+        let teamMemberNames = participants.compactMap { userNames[$0] ?? $0 }
         
         let status = ProjectStatus(
             projectName: projectName,
@@ -226,7 +233,7 @@ class AIService: ObservableObject {
             blockers: ["Waiting for client feedback", "API integration pending"],
             nextSteps: ["Complete user testing", "Deploy to staging"],
             dependencies: ["Design approval", "Third-party service integration"],
-            teamMembers: Array(Set(context.map { $0.senderId }))
+            teamMembers: teamMemberNames
         )
         
         await MainActor.run {
