@@ -48,8 +48,7 @@ struct ChatView: View {
                     }
                 }
                 .onAppear {
-                    // Mark all messages as read when chat is viewed
-                    messageService.markAllMessagesAsRead(in: chat.id)
+                    // Messages will be marked as read in the main onAppear
                 }
             }
             
@@ -78,13 +77,19 @@ struct ChatView: View {
         }
         .onAppear {
             messageService.loadMessages(for: chat.id)
+            
+            // Mark messages as read immediately when chat is viewed
             messageService.markAllMessagesAsRead(in: chat.id)
-            // Mark notifications as read for this chat using production manager
+            
+            // Also mark as read after a short delay to ensure all messages are loaded
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                messageService.markAllMessagesAsRead(in: chat.id)
+            }
+            
+            // Mark notifications as read for this chat using production notification manager
             ProductionNotificationManager.shared.markAllNotificationsAsReadForChat(chat.id)
             // Clear system notifications for this chat
             ProductionNotificationManager.shared.clearSystemNotificationsForChat(chat.id)
-            // Also clear all notifications to prevent old ones from showing
-            ProductionNotificationManager.shared.clearAllNotifications()
         }
         .onDisappear {
             messageService.removeMessageListener(for: chat.id)

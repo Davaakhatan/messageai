@@ -238,7 +238,7 @@ class AIService: ObservableObject {
     
     // 3. Decision Tracking
     func extractDecisions(from chatId: String) async throws -> [Decision] {
-        let context = await getConversationContext(for: chatId)
+            let context = await getConversationContext(for: chatId)
         let participants = Set(context.map { $0.senderId }).map { $0 }
         
         // Resolve user IDs to display names

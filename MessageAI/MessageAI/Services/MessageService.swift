@@ -231,13 +231,21 @@ class MessageService: ObservableObject {
                 return
             }
             
-            // Send notification to all recipients
+            // Only send notifications to recipients (not the sender)
+            guard let currentUser = Auth.auth().currentUser else { return }
+            
             for recipientId in message.recipients {
-                NotificationService.shared.sendMessageNotification(
-                    to: recipientId,
-                    message: message,
-                    senderName: senderName
-                )
+                // Don't send notification to the sender
+                if recipientId != currentUser.uid {
+                    print("🔔 Sending notification to recipient: \(recipientId)")
+                    ProductionNotificationManager.shared.sendNotification(
+                        to: recipientId,
+                        message: message,
+                        senderName: senderName
+                    )
+                } else {
+                    print("🔔 Skipping notification for sender: \(recipientId)")
+                }
             }
         }
     }
@@ -249,7 +257,22 @@ class MessageService: ObservableObject {
     func markAllMessagesAsRead(in chatId: String) {
         guard let currentUser = Auth.auth().currentUser else { return }
         
-        // Get all messages for this chat and filter client-side
+        print("📖 Marking all messages as read in chat \(chatId)")
+        
+        // First, update local cache immediately for better UX
+        if var chatMessages = messages[chatId] {
+            for i in 0..<chatMessages.count {
+                if chatMessages[i].senderId != currentUser.uid && chatMessages[i].deliveryStatus != .read {
+                    chatMessages[i].deliveryStatus = .read
+                    print("📖 Marking message as read: \(chatMessages[i].content)")
+                }
+            }
+            messages[chatId] = chatMessages
+            updateUnreadCount()
+            print("✅ Updated local cache with \(chatMessages.count) messages")
+        }
+        
+        // Then update Firestore
         db.collection("messages")
             .whereField("chatId", isEqualTo: chatId)
             .whereField("recipients", arrayContains: currentUser.uid)
@@ -269,10 +292,10 @@ class MessageService: ObservableObject {
                     return senderId != currentUser.uid && deliveryStatus != "read"
                 }
                 
-                print("📖 Marking \(unreadMessages.count) messages as read in chat \(chatId)")
+                print("📖 Found \(unreadMessages.count) unread messages to mark as read in Firestore")
                 
                 if unreadMessages.isEmpty {
-                    print("✅ No unread messages to mark as read")
+                    print("✅ No unread messages to mark as read in Firestore")
                     return
                 }
                 
@@ -286,7 +309,7 @@ class MessageService: ObservableObject {
                     if let error = error {
                         print("❌ Error marking messages as read: \(error.localizedDescription)")
                     } else {
-                        print("✅ Successfully marked \(unreadMessages.count) messages as read")
+                        print("✅ Successfully marked \(unreadMessages.count) messages as read in Firestore")
                     }
                 }
             }

@@ -19,6 +19,13 @@ class AuthService: ObservableObject {
             return
         }
         #endif
+        
+        // Add simulator-specific identifier for isolation
+        #if targetEnvironment(simulator)
+        let simulatorId = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
+        print("🔧 Simulator ID: \(simulatorId)")
+        #endif
+        
         print("🔧 AuthService init - setting up auth state listener")
         setupAuthStateListener()
         

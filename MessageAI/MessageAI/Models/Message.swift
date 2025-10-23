@@ -9,7 +9,7 @@ struct Message: Codable, Identifiable, Equatable {
     let chatId: String
     let timestamp: Date
     let type: MessageType
-    let deliveryStatus: DeliveryStatus
+    var deliveryStatus: DeliveryStatus
     let mediaURL: String?
     let replyToMessageId: String?
     let recipients: [String] // Array of user IDs who should receive this message

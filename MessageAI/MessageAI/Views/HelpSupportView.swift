@@ -246,23 +246,23 @@ struct HelpSupportView: View {
                 }
                 
                 Link(destination: URL(string: "https://messageai.com/faq")!) {
-                    HStack {
+                HStack {
                         Image(systemName: "safari")
                             .foregroundColor(.blue)
                         Text("Visit FAQ Website")
-                        Spacer()
+                    Spacer()
                         Image(systemName: "arrow.up.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
+            }
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("MessageAI v1.0.0")
                     Text("© 2024 MessageAI. All rights reserved.")
                 }
                 .font(.caption)
-                .foregroundColor(.secondary)
+                    .foregroundColor(.secondary)
             }
         }
         .navigationTitle("Help & Support")
@@ -280,12 +280,12 @@ struct HelpRowView: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title2)
+                Image(systemName: icon)
+                    .font(.title2)
                 .foregroundColor(iconColor)
                 .frame(width: 30)
-            
-            Text(title)
+                
+                    Text(title)
                 .font(.body)
         }
     }
@@ -367,7 +367,7 @@ struct ContactSupportView: View {
 }
 
 #Preview {
-    NavigationView {
+        NavigationView {
         HelpSupportView()
     }
 }

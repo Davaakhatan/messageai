@@ -111,9 +111,8 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, Messagin
     }
     
     private func handleMarkAsReadAction(userInfo: [AnyHashable: Any]) {
-        if let notificationId = userInfo["notificationId"] as? String {
-            ProductionNotificationManager.shared.markNotificationAsRead(notificationId)
-        }
+        // Simple notification manager doesn't need complex read tracking
+        print("📖 Mark as read action triggered")
     }
     
     private func handleNotificationTap(userInfo: [AnyHashable: Any]) {
