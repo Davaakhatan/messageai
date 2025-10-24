@@ -469,6 +469,10 @@ class MessageService: ObservableObject {
             for i in 0..<chatMessages.count {
                 if chatMessages[i].senderId != currentUser.uid && chatMessages[i].deliveryStatus != .read {
                     chatMessages[i].deliveryStatus = .read
+                    // Add current user to readBy array if not already present
+                    if !chatMessages[i].readBy.contains(currentUser.uid) {
+                        chatMessages[i].readBy.append(currentUser.uid)
+                    }
                     print("📖 Marking message as read: \(chatMessages[i].content)")
                 }
             }
@@ -522,6 +526,10 @@ class MessageService: ObservableObject {
                         print("❌ Error marking messages as read: \(error.localizedDescription)")
                     } else {
                         print("✅ Successfully marked \(unreadMessages.count) messages as read in Firestore")
+                        // Force update unread count after Firestore update
+                        DispatchQueue.main.async {
+                            self?.updateUnreadCount()
+                        }
                     }
                 }
             }
@@ -577,15 +585,22 @@ class MessageService: ObservableObject {
         guard let currentUser = Auth.auth().currentUser else { return }
         
         var totalUnread = 0
-        for (_, messageList) in messages {
+        var chatCounts: [String: Int] = [:]
+        
+        for (chatId, messageList) in messages {
             let unreadMessages = messageList.filter { 
                 $0.senderId != currentUser.uid && $0.deliveryStatus != .read 
             }
-            totalUnread += unreadMessages.count
+            let chatUnreadCount = unreadMessages.count
+            totalUnread += chatUnreadCount
+            chatCounts[chatId] = chatUnreadCount
         }
+        
+        print("📊 Updating unread count: \(totalUnread) total, chat counts: \(chatCounts)")
         
         DispatchQueue.main.async {
             self.unreadCount = totalUnread
+            self.chatUnreadCounts = chatCounts
         }
     }
     

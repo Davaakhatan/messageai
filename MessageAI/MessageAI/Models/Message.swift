@@ -14,7 +14,7 @@ struct Message: Codable, Identifiable, Equatable {
     let replyToMessageId: String?
     let recipients: [String] // Array of user IDs who should receive this message
     let senderName: String? // Display name of the sender
-    let readBy: [String] // Array of user IDs who have read this message
+    var readBy: [String] // Array of user IDs who have read this message
     var reactions: [String: [String]] // Emoji -> Array of user IDs who reacted
     
     init(

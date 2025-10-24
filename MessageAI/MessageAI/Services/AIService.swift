@@ -214,7 +214,7 @@ class AIService: ObservableObject {
     
     // 2. Smart Project Status Updates
     func generateProjectStatus(for chatId: String, projectName: String) async throws -> ProjectStatus {
-        let context = await getConversationContext(for: chatId)
+            let context = await getConversationContext(for: chatId)
         let participants = Set(context.map { $0.senderId }).map { $0 }
         
         // Resolve user IDs to display names

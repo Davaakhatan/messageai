@@ -252,17 +252,40 @@ struct MessageBubbleView: View {
                 
                 // Read Receipts (for group chats)
                 if isFromCurrentUser && isGroupChat && !message.readBy.isEmpty {
-                    HStack(spacing: 4) {
-                        Text("Read by \(message.readBy.count) of \(chatParticipants.count)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        
-                        if message.readBy.count < chatParticipants.count {
-                            Button("View Details") {
-                                showingTimestamp.toggle()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        HStack(spacing: 4) {
+                            // Calculate recipients count (exclude sender)
+                            let recipientsCount = chatParticipants.count - 1
+                            Text("Read by \(message.readBy.count) of \(recipientsCount)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            
+                            if message.readBy.count < recipientsCount {
+                                Button("View Details") {
+                                    showingTimestamp.toggle()
+                                }
+                                .font(.caption2)
+                                .foregroundColor(.blue)
                             }
-                            .font(.caption2)
-                            .foregroundColor(.blue)
+                        }
+                        
+                        // Show reader names when View Details is tapped
+                        if showingTimestamp && !message.readBy.isEmpty {
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("Read by:")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                
+                                ForEach(readByNames, id: \.self) { readerName in
+                                    Text("• \(readerName)")
+                                        .font(.caption2)
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(6)
                         }
                     }
                     .padding(.horizontal, 4)

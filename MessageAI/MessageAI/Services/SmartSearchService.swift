@@ -145,21 +145,32 @@ class SmartSearchService: ObservableObject {
     
     private func searchMessages(query: String, completion: @escaping ([SearchResult]) -> Void) {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
+            print("🔍 Smart Search: No current user")
             completion([])
             return
         }
+        
+        print("🔍 Smart Search: Searching for '\(query)' in messages")
         
         // Get user's chat IDs first
         db.collection("chats")
             .whereField("participants", arrayContains: currentUserId)
             .getDocuments { [weak self] snapshot, error in
+                if let error = error {
+                    print("❌ Smart Search: Error getting chats: \(error.localizedDescription)")
+                    completion([])
+                    return
+                }
+                
                 guard let self = self,
                       let documents = snapshot?.documents else {
+                    print("❌ Smart Search: No chat documents found")
                     completion([])
                     return
                 }
                 
                 let chatIds = documents.map { $0.documentID }
+                print("🔍 Smart Search: Found \(chatIds.count) chats: \(chatIds)")
                 
                 // Search in messages from user's chats
                 self.db.collection("messages")
@@ -167,10 +178,19 @@ class SmartSearchService: ObservableObject {
                     .order(by: "timestamp", descending: true)
                     .limit(to: 100)
                     .getDocuments { snapshot, error in
-                        guard let documents = snapshot?.documents else {
+                        if let error = error {
+                            print("❌ Smart Search: Error getting messages: \(error.localizedDescription)")
                             completion([])
                             return
                         }
+                        
+                        guard let documents = snapshot?.documents else {
+                            print("❌ Smart Search: No message documents found")
+                            completion([])
+                            return
+                        }
+                        
+                        print("🔍 Smart Search: Found \(documents.count) messages to search through")
                         
                         let results = documents.compactMap { doc -> SearchResult? in
                             let data = doc.data()
@@ -183,6 +203,7 @@ class SmartSearchService: ObservableObject {
                             
                             // Check if content matches query
                             if content.lowercased().contains(query) {
+                                print("✅ Smart Search: Found match in message: '\(content)'")
                                 return SearchResult(
                                     id: doc.documentID,
                                     type: .message,
@@ -200,6 +221,7 @@ class SmartSearchService: ObservableObject {
                             return nil
                         }
                         
+                        print("🔍 Smart Search: Found \(results.count) matching messages")
                         completion(results)
                     }
             }
@@ -368,9 +390,8 @@ class SmartSearchService: ObservableObject {
     // MARK: - Helper Functions
     
     private func getSenderName(senderId: String) -> String {
-        // This would typically fetch from a cache or database
-        // For now, return a placeholder
-        return "User \(senderId.prefix(8))"
+        // Use UserService to get the actual user name
+        return UserService.shared.getUserName(for: senderId)
     }
     
     private func sortResults(_ results: [SearchResult], for query: String) -> [SearchResult] {
