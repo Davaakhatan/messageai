@@ -142,6 +142,7 @@ struct MessageBubbleView: View {
     let isGroupChat: Bool
     let chatParticipants: [String]
     @State private var showingTimestamp = false
+    @State private var showingReactionPicker = false
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var messageService: MessageService
     @StateObject private var userService = UserService.shared
@@ -175,6 +176,7 @@ struct MessageBubbleView: View {
             }
         }
     }
+    
     
     var body: some View {
         HStack {
@@ -213,37 +215,66 @@ struct MessageBubbleView: View {
                         }
                     } else {
                         Text(message.content)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(isFromCurrentUser ? Color.blue : (isUnread ? Color.blue.opacity(0.1) : Color.gray.opacity(0.2)))
-                )
-                .foregroundColor(isFromCurrentUser ? .white : (isUnread ? .blue : .primary))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(isUnread ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
-                )
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showingTimestamp.toggle()
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(isFromCurrentUser ? Color.blue : Color(.systemGray5))
+                            .foregroundColor(isFromCurrentUser ? .white : .primary)
+                            .cornerRadius(16)
                     }
                 }
                 
-                // Timestamp and Status
-                if showingTimestamp {
-                    Text(formatDetailedTime(message.timestamp))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 4)
-                        .transition(.opacity.combined(with: .scale))
+                // Message Reactions
+                if !message.reactions.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(message.reactions.keys.sorted(), id: \.self) { emoji in
+                            if let userIds = message.reactions[emoji], !userIds.isEmpty {
+                                Button(action: {
+                                    if userIds.contains(authService.currentUser?.id ?? "") {
+                                        messageService.removeReaction(messageId: message.id, chatId: message.chatId, emoji: emoji)
+                                    } else {
+                                        messageService.addReaction(messageId: message.id, chatId: message.chatId, emoji: emoji)
+                                    }
+                                }) {
+                                    HStack(spacing: 2) {
+                                        Text(emoji)
+                                        Text("\(userIds.count)")
+                                            .font(.caption2)
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(8)
+                                }
+                            }
+                        }
+                    }
                 }
                 
-                HStack(spacing: 4) {
-                    if !showingTimestamp {
+                // Read Receipts (for group chats)
+                if isFromCurrentUser && isGroupChat && !message.readBy.isEmpty {
+                    HStack(spacing: 4) {
+                        Text("Read by \(message.readBy.count) of \(chatParticipants.count)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        
+                        if message.readBy.count < chatParticipants.count {
+                            Button("View Details") {
+                                showingTimestamp.toggle()
+                            }
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                }
+                
+                // Timestamp
+                HStack {
+                    if showingTimestamp {
+                        Text(formatDetailedTime(message.timestamp))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    } else {
                         Text(formatTime(message.timestamp))
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -261,13 +292,12 @@ struct MessageBubbleView: View {
                                     Text("Failed")
                                         .font(.caption2)
                                         .foregroundColor(.red)
-                                    
-                                    Button(action: {
+                                    Button {
                                         messageService.retryFailedMessage(messageId: message.id, chatId: message.chatId)
-                                    }) {
+                                    } label: {
                                         Image(systemName: "arrow.clockwise")
                                             .font(.caption2)
-                                            .foregroundColor(.blue)
+                                            .foregroundColor(.red)
                                     }
                                 }
                             } else if message.deliveryStatus == .sending {
@@ -279,27 +309,19 @@ struct MessageBubbleView: View {
                     }
                 }
                 .padding(.horizontal, 4)
-                
-                // Read Receipts (for group chats)
-                if isGroupChat && isFromCurrentUser && !message.readBy.isEmpty {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("Read by \(message.readBy.count) of \(chatParticipants.count - 1)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        
-                        if showingTimestamp {
-                            Text("Read by: \(readByNames.joined(separator: ", "))")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 4)
-                }
             }
             
             if !isFromCurrentUser {
                 Spacer()
             }
+        }
+        .onLongPressGesture {
+            // Show reaction picker
+            print("🧪 Long press detected on message: \(message.content)")
+            showingReactionPicker = true
+        }
+        .sheet(isPresented: $showingReactionPicker) {
+            ReactionPickerView(messageId: message.id, chatId: message.chatId)
         }
         .animation(.easeInOut(duration: 0.2), value: showingTimestamp)
     }
@@ -327,7 +349,6 @@ struct MessageBubbleView: View {
         formatter.timeStyle = .short
         return formatter.string(from: date)
     }
-    
 }
 
 struct MessageInputView: View {
@@ -409,6 +430,53 @@ struct MessageInputView: View {
     }
 }
 
+struct ReactionPickerView: View {
+    let messageId: String
+    let chatId: String
+    @Environment(\.presentationMode) var presentationMode
+    @EnvironmentObject var messageService: MessageService
+    
+    private let commonReactions = ["👍", "👎", "❤️", "😂", "😮", "😢", "😡", "🎉"]
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Text("Add Reaction")
+                    .font(.headline)
+                    .padding(.top)
+                
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 16) {
+                    ForEach(commonReactions, id: \.self) { emoji in
+                        Button(action: {
+                            messageService.addReaction(messageId: messageId, chatId: chatId, emoji: emoji)
+                            presentationMode.wrappedValue.dismiss()
+                        }) {
+                            Text(emoji)
+                                .font(.title)
+                                .frame(width: 50, height: 50)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.gray.opacity(0.1))
+                                )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
 
 #Preview {
     let sampleChat = Chat(

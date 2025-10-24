@@ -259,6 +259,83 @@ class MessageService: ObservableObject {
         }
     }
     
+    func addReaction(messageId: String, chatId: String, emoji: String) {
+        guard let currentUser = Auth.auth().currentUser else { return }
+        
+        // Update local cache immediately
+        if let messageIndex = messages[chatId]?.firstIndex(where: { $0.id == messageId }) {
+            var message = messages[chatId]?[messageIndex]
+            var reactions = message?.reactions ?? [:]
+            
+            // Remove user from all other reactions for this message
+            for (emojiKey, userIds) in reactions {
+                if userIds.contains(currentUser.uid) {
+                    reactions[emojiKey] = userIds.filter { $0 != currentUser.uid }
+                    if reactions[emojiKey]?.isEmpty == true {
+                        reactions.removeValue(forKey: emojiKey)
+                    }
+                }
+            }
+            
+            // Add user to this reaction
+            if reactions[emoji] == nil {
+                reactions[emoji] = []
+            }
+            if !reactions[emoji]!.contains(currentUser.uid) {
+                reactions[emoji]!.append(currentUser.uid)
+            }
+            
+            message?.reactions = reactions
+            if var updatedMessage = message {
+                messages[chatId]?[messageIndex] = updatedMessage
+            }
+        }
+        
+        // Update Firestore
+        db.collection("messages").document(messageId).updateData([
+            "reactions.\(emoji)": FieldValue.arrayUnion([currentUser.uid])
+        ]) { [weak self] error in
+            if let error = error {
+                print("❌ Error adding reaction: \(error.localizedDescription)")
+            } else {
+                print("✅ Reaction added successfully")
+            }
+        }
+    }
+    
+    func removeReaction(messageId: String, chatId: String, emoji: String) {
+        guard let currentUser = Auth.auth().currentUser else { return }
+        
+        // Update local cache immediately
+        if let messageIndex = messages[chatId]?.firstIndex(where: { $0.id == messageId }) {
+            var message = messages[chatId]?[messageIndex]
+            var reactions = message?.reactions ?? [:]
+            
+            if let userIds = reactions[emoji] {
+                reactions[emoji] = userIds.filter { $0 != currentUser.uid }
+                if reactions[emoji]?.isEmpty == true {
+                    reactions.removeValue(forKey: emoji)
+                }
+            }
+            
+            message?.reactions = reactions
+            if var updatedMessage = message {
+                messages[chatId]?[messageIndex] = updatedMessage
+            }
+        }
+        
+        // Update Firestore
+        db.collection("messages").document(messageId).updateData([
+            "reactions.\(emoji)": FieldValue.arrayRemove([currentUser.uid])
+        ]) { [weak self] error in
+            if let error = error {
+                print("❌ Error removing reaction: \(error.localizedDescription)")
+            } else {
+                print("✅ Reaction removed successfully")
+            }
+        }
+    }
+    
     func updateMessageDeliveryStatus(messageId: String, status: Message.DeliveryStatus) {
         db.collection("messages").document(messageId).updateData([
             "deliveryStatus": status.rawValue

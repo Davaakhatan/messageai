@@ -15,6 +15,7 @@ struct Message: Codable, Identifiable, Equatable {
     let recipients: [String] // Array of user IDs who should receive this message
     let senderName: String? // Display name of the sender
     let readBy: [String] // Array of user IDs who have read this message
+    var reactions: [String: [String]] // Emoji -> Array of user IDs who reacted
     
     init(
         id: String = UUID().uuidString,
@@ -28,7 +29,8 @@ struct Message: Codable, Identifiable, Equatable {
         replyToMessageId: String? = nil,
         recipients: [String] = [],
         senderName: String? = nil,
-        readBy: [String] = []
+        readBy: [String] = [],
+        reactions: [String: [String]] = [:]
     ) {
         self.id = id
         self.content = content
@@ -42,6 +44,7 @@ struct Message: Codable, Identifiable, Equatable {
         self.recipients = recipients
         self.senderName = senderName
         self.readBy = readBy
+        self.reactions = reactions
     }
     
     enum MessageType: String, Codable, CaseIterable {
@@ -115,6 +118,7 @@ extension Message {
         self.recipients = data["recipients"] as? [String] ?? []
         self.senderName = data["senderName"] as? String
         self.readBy = data["readBy"] as? [String] ?? []
+        self.reactions = data["reactions"] as? [String: [String]] ?? [:]
     }
     
     func toDictionary() -> [String: Any] {
@@ -129,7 +133,8 @@ extension Message {
             "replyToMessageId": replyToMessageId as Any,
             "recipients": recipients,
             "senderName": senderName as Any,
-            "readBy": readBy
+            "readBy": readBy,
+            "reactions": reactions
         ]
     }
 }

@@ -99,6 +99,39 @@ struct MockTestingView: View {
                     .background(Color(.systemBackground))
                     .cornerRadius(12)
                     
+                    // Message Reactions Testing
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Message Reactions Testing")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                        
+                        Text("Test message reactions by long-pressing any message in chat, or use the test buttons below:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        VStack(spacing: 8) {
+                            Button("Test Reaction Picker") {
+                                // This will show how the reaction picker works
+                                print("🧪 Testing reaction picker - try long-pressing a message in chat")
+                            }
+                            .buttonStyle(TestButtonStyle())
+                            .frame(maxWidth: .infinity)
+                            
+                            Button("Add Test Reaction") {
+                                // Add a test reaction to the first message if available
+                                if let firstChat = messageService.messages.keys.first,
+                                   let firstMessage = messageService.messages[firstChat]?.first {
+                                    messageService.addReaction(messageId: firstMessage.id, chatId: firstChat, emoji: "👍")
+                                }
+                            }
+                            .buttonStyle(TestButtonStyle())
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(12)
+                    
                     // Message Type Testing
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Message Types")
