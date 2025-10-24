@@ -81,6 +81,22 @@ struct MockTestingView: View {
                     .background(Color(.systemBackground))
                     .cornerRadius(12)
                     
+                    // Notification Testing
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Notification Testing")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                        
+                        Button("Test Notification") {
+                            ProductionNotificationManager.shared.testNotification()
+                        }
+                        .buttonStyle(TestButtonStyle())
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(12)
+                    
                     // Message Type Testing
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Message Types")

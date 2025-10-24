@@ -86,9 +86,15 @@ class ProductionNotificationManager: ObservableObject {
     
     func requestNotificationPermission() async -> Bool {
         do {
+            // First check current authorization status
+            let currentSettings = await UNUserNotificationCenter.current().notificationSettings()
+            print("📱 Current notification settings: \(currentSettings.authorizationStatus.rawValue)")
+            
             let granted = try await UNUserNotificationCenter.current().requestAuthorization(
-                options: [.alert, .badge, .sound, .provisional]
+                options: [.alert, .badge, .sound]
             )
+            
+            print("📱 Notification permission result: \(granted)")
             
             if granted {
                 await MainActor.run {
@@ -174,6 +180,8 @@ class ProductionNotificationManager: ObservableObject {
         
         lastNotificationTime = now
         
+        print("🔔 Attempting to display notification: \(notification.message) from \(notification.senderName)")
+        
         // Create notification content
         let content = UNMutableNotificationContent()
         content.title = "📱 MessageAI"
@@ -192,16 +200,25 @@ class ProductionNotificationManager: ObservableObject {
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
         
         let request = UNNotificationRequest(
-            identifier: "immediate_\(notification.id)",
+            identifier: "immediate_\(notification.id)_\(Date().timeIntervalSince1970)",
             content: content,
             trigger: trigger
         )
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ Error displaying notification: \(error.localizedDescription)")
+        // Check notification settings before adding
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            print("📱 Notification settings: \(settings.authorizationStatus.rawValue)")
+            
+            if settings.authorizationStatus == .authorized {
+                UNUserNotificationCenter.current().add(request) { error in
+                    if let error = error {
+                        print("❌ Error displaying notification: \(error.localizedDescription)")
+                    } else {
+                        print("✅ Notification displayed: \(notification.message)")
+                    }
+                }
             } else {
-                print("✅ Notification displayed: \(notification.message)")
+                print("❌ Notifications not authorized, cannot display")
             }
         }
     }
@@ -261,7 +278,8 @@ class ProductionNotificationManager: ObservableObject {
                     
                     // Display the latest notification if it's new
                     if let latestNotification = unreadNotifications.first {
-                        print("🔔 Displaying notification for current user: \(currentUserId) from sender: \(latestNotification.senderId)")
+                        print("🔔 Found notification for current user: \(currentUserId) from sender: \(latestNotification.senderId)")
+                        print("🔔 Notification content: \(latestNotification.message)")
                         self?.displayImmediateNotification(latestNotification)
                     } else {
                         print("⚠️ No unread notifications to display")
@@ -365,6 +383,21 @@ class ProductionNotificationManager: ObservableObject {
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
             print("✅ Cleared \(identifiers.count) pending notifications for chat: \(chatId)")
         }
+    }
+    
+    // MARK: - Test Notification (for debugging)
+    
+    func testNotification() {
+        print("🧪 Testing notification system...")
+        
+        let testNotification = NotificationData(
+            senderId: "test_sender",
+            senderName: "Test User",
+            message: "This is a test notification",
+            chatId: "test_chat"
+        )
+        
+        displayImmediateNotification(testNotification)
     }
     
     // MARK: - Clear All Notifications
