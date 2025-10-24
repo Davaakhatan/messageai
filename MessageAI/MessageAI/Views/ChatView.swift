@@ -143,6 +143,7 @@ struct MessageBubbleView: View {
     let chatParticipants: [String]
     @State private var showingTimestamp = false
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var messageService: MessageService
     @StateObject private var userService = UserService.shared
     
     private var isUnread: Bool {
@@ -249,9 +250,32 @@ struct MessageBubbleView: View {
                     }
                     
                     if isFromCurrentUser {
-                        Image(systemName: message.deliveryStatus.checkmarkIcon)
-                            .font(.caption2)
-                            .foregroundColor(message.deliveryStatus.displayColor)
+                        HStack(spacing: 4) {
+                            Image(systemName: message.deliveryStatus.checkmarkIcon)
+                                .font(.caption2)
+                                .foregroundColor(message.deliveryStatus.displayColor)
+                            
+                            // Show status text for failed messages
+                            if message.deliveryStatus == .failed {
+                                HStack(spacing: 4) {
+                                    Text("Failed")
+                                        .font(.caption2)
+                                        .foregroundColor(.red)
+                                    
+                                    Button(action: {
+                                        messageService.retryFailedMessage(messageId: message.id, chatId: message.chatId)
+                                    }) {
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.caption2)
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                            } else if message.deliveryStatus == .sending {
+                                Text("Sending...")
+                                    .font(.caption2)
+                                    .foregroundColor(.blue)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 4)

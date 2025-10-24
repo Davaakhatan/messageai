@@ -182,19 +182,32 @@ class MessageService: ObservableObject {
     }
     
     private func sendMessageToFirestore(_ message: Message) {
-        // Optimistic update
+        // Optimistic update - add message with "sending" status
         if messages[message.chatId] == nil {
             messages[message.chatId] = []
         }
-        messages[message.chatId]?.append(message)
+        
+        var sendingMessage = message
+        sendingMessage.deliveryStatus = .sending
+        messages[message.chatId]?.append(sendingMessage)
+        
+        // Simulate network delay for testing offline scenarios
+        let isOffline = !isNetworkAvailable()
+        
+        if isOffline {
+            // Simulate offline behavior - mark as failed after delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                self?.markMessageAsFailed(messageId: message.id, chatId: message.chatId)
+            }
+            return
+        }
         
         // Send to Firestore
         db.collection("messages").document(message.id).setData(message.toDictionary()) { [weak self] error in
             DispatchQueue.main.async {
                 if let error = error {
                     self?.errorMessage = "Failed to send message: \(error.localizedDescription)"
-                    // Remove the optimistic update
-                    self?.messages[message.chatId]?.removeAll { $0.id == message.id }
+                    self?.markMessageAsFailed(messageId: message.id, chatId: message.chatId)
                     return
                 }
                 
@@ -206,6 +219,42 @@ class MessageService: ObservableObject {
                 
                 // Send push notification to recipients
                 self?.sendNotificationToRecipients(message: message)
+            }
+        }
+    }
+    
+    private var isOfflineMode = false
+    
+    func setOfflineMode(_ isOffline: Bool) {
+        isOfflineMode = isOffline
+    }
+    
+    private func isNetworkAvailable() -> Bool {
+        return !isOfflineMode
+    }
+    
+    private func markMessageAsFailed(messageId: String, chatId: String) {
+        if let messageIndex = messages[chatId]?.firstIndex(where: { $0.id == messageId }) {
+            messages[chatId]?[messageIndex].deliveryStatus = .failed
+        }
+    }
+    
+    func retryFailedMessage(messageId: String, chatId: String) {
+        guard let messageIndex = messages[chatId]?.firstIndex(where: { $0.id == messageId }),
+              var message = messages[chatId]?[messageIndex] else { return }
+        
+        // Update status to sending
+        message.deliveryStatus = .sending
+        messages[chatId]?[messageIndex] = message
+        
+        // Try to send again
+        db.collection("messages").document(message.id).setData(message.toDictionary()) { [weak self] error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    self?.markMessageAsFailed(messageId: message.id, chatId: message.chatId)
+                } else {
+                    self?.updateMessageDeliveryStatus(messageId: message.id, status: .sent)
+                }
             }
         }
     }
@@ -281,9 +330,10 @@ class MessageService: ObservableObject {
             print("✅ Updated local cache with \(chatMessages.count) messages")
         }
         
-        // Then update Firestore - get ALL messages in this chat
+        // Then update Firestore - get messages where current user is a recipient
         db.collection("messages")
             .whereField("chatId", isEqualTo: chatId)
+            .whereField("recipients", arrayContains: currentUser.uid)
             .getDocuments { [weak self] snapshot, error in
                 if let error = error {
                     print("❌ Error getting messages to mark as read: \(error.localizedDescription)")
@@ -292,38 +342,39 @@ class MessageService: ObservableObject {
                 
                 guard let documents = snapshot?.documents else { return }
                 
-                print("📖 Found \(documents.count) total messages in chat \(chatId)")
-                
-                // Update each message to add current user to readBy array
-                let batch = self?.db.batch()
-                var messagesToUpdate = 0
-                
-                for document in documents {
+                // Filter for unread messages from other users
+                let unreadMessages = documents.filter { document in
                     let data = document.data()
-                    let currentReadBy = data["readBy"] as? [String] ?? []
-                    
-                    // Only update if current user is not already in readBy array
+                    let senderId = data["senderId"] as? String ?? ""
+                    let deliveryStatus = data["deliveryStatus"] as? String ?? ""
+                    return senderId != currentUser.uid && deliveryStatus != "read"
+                }
+                
+                print("📖 Found \(unreadMessages.count) unread messages to mark as read in Firestore")
+                
+                if unreadMessages.isEmpty {
+                    print("✅ No unread messages to mark as read in Firestore")
+                    return
+                }
+                
+                // Update each unread message in a batch
+                let batch = self?.db.batch()
+                for document in unreadMessages {
+                    let currentReadBy = document.data()["readBy"] as? [String] ?? []
                     if !currentReadBy.contains(currentUser.uid) {
                         let updatedReadBy = currentReadBy + [currentUser.uid]
                         batch?.updateData([
+                            "deliveryStatus": "read",
                             "readBy": updatedReadBy
                         ], forDocument: document.reference)
-                        messagesToUpdate += 1
                     }
-                }
-                
-                print("📖 Updating \(messagesToUpdate) messages to mark as read by \(currentUser.uid)")
-                
-                if messagesToUpdate == 0 {
-                    print("✅ No messages need to be updated - user already marked as read")
-                    return
                 }
                 
                 batch?.commit { error in
                     if let error = error {
                         print("❌ Error marking messages as read: \(error.localizedDescription)")
                     } else {
-                        print("✅ Successfully marked \(messagesToUpdate) messages as read by \(currentUser.uid)")
+                        print("✅ Successfully marked \(unreadMessages.count) messages as read in Firestore")
                     }
                 }
             }

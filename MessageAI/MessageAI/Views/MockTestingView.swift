@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MockTestingView: View {
     @Environment(\.presentationMode) var presentationMode
+    @EnvironmentObject var messageService: MessageService
     @State private var isOnline = false
     @State private var mockMessages: [MockMessage] = []
     @State private var autoMessageTimer: Timer?
@@ -41,6 +42,7 @@ struct MockTestingView: View {
                             
                             Button(isOnline ? "Go Offline" : "Go Online") {
                                 isOnline.toggle()
+                                messageService.setOfflineMode(!isOnline)
                             }
                             .foregroundColor(.blue)
                         }
