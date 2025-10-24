@@ -291,14 +291,84 @@ class MessageService: ObservableObject {
             }
         }
         
-        // Update Firestore
-        db.collection("messages").document(messageId).updateData([
-            "reactions.\(emoji)": FieldValue.arrayUnion([currentUser.uid])
-        ]) { [weak self] error in
-            if let error = error {
-                print("❌ Error adding reaction: \(error.localizedDescription)")
-            } else {
-                print("✅ Reaction added successfully")
+        // Update Firestore - first remove from all other reactions, then add to new one
+        let messageRef = db.collection("messages").document(messageId)
+        
+        // Get current reactions to remove user from all others
+        messageRef.getDocument { [weak self] document, error in
+            guard let document = document, document.exists,
+                  let data = document.data(),
+                  let currentReactions = data["reactions"] as? [String: [String]] else {
+                // If no reactions exist, just add the new one
+                messageRef.updateData([
+                    "reactions.\(emoji)": FieldValue.arrayUnion([currentUser.uid])
+                ]) { error in
+                    if let error = error {
+                        print("❌ Error adding reaction: \(error.localizedDescription)")
+                    } else {
+                        print("✅ Reaction added successfully")
+                        
+                        // Send reaction notification
+                        if let message = self?.messages[chatId]?.first(where: { $0.id == messageId }) {
+                            // Get user name from UserService
+                            let currentUserName = self?.userService.getUserName(for: currentUser.uid) ?? "Unknown User"
+                            
+                            // Send notification to the message sender (the person whose message was reacted to)
+                            // Only send if the person reacting is not the same as the message sender
+                            if message.senderId != currentUser.uid {
+                                ProductionNotificationManager.shared.sendReactionNotification(
+                                    senderId: currentUser.uid,
+                                    senderName: currentUserName,
+                                    emoji: emoji,
+                                    messageContent: message.content,
+                                    chatId: chatId,
+                                    messageRecipients: [message.senderId] // Send to the message sender only
+                                )
+                            }
+                        }
+                    }
+                }
+                return
+            }
+            
+            // Remove user from all existing reactions
+            var updates: [String: Any] = [:]
+            for (existingEmoji, userIds) in currentReactions {
+                if userIds.contains(currentUser.uid) {
+                    updates["reactions.\(existingEmoji)"] = FieldValue.arrayRemove([currentUser.uid])
+                }
+            }
+            
+            // Add user to new reaction
+            updates["reactions.\(emoji)"] = FieldValue.arrayUnion([currentUser.uid])
+            
+            // Apply all updates at once
+            messageRef.updateData(updates) { error in
+                if let error = error {
+                    print("❌ Error adding reaction: \(error.localizedDescription)")
+                } else {
+                    print("✅ Reaction added successfully")
+                    
+                    // Send reaction notification
+                    if let message = self?.messages[chatId]?.first(where: { $0.id == messageId }) {
+                        // Get user name from UserService
+                        let currentUserName = self?.userService.getUserName(for: currentUser.uid) ?? "Unknown User"
+                        let messageRecipients = message.recipients
+                        
+                        // Send notification to the message sender (the person whose message was reacted to)
+                        // Only send if the person reacting is not the same as the message sender
+                        if message.senderId != currentUser.uid {
+                            ProductionNotificationManager.shared.sendReactionNotification(
+                                senderId: currentUser.uid,
+                                senderName: currentUserName,
+                                emoji: emoji,
+                                messageContent: message.content,
+                                chatId: chatId,
+                                messageRecipients: [message.senderId] // Send to the message sender only
+                            )
+                        }
+                    }
+                }
             }
         }
     }

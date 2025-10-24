@@ -32,8 +32,15 @@ class ProductionNotificationManager: ObservableObject {
         let chatId: String
         let timestamp: Date
         let isRead: Bool
+        let type: NotificationType
+        let emoji: String?
         
-        init(senderId: String, senderName: String, message: String, chatId: String) {
+        enum NotificationType: String, Codable {
+            case message = "message"
+            case reaction = "reaction"
+        }
+        
+        init(senderId: String, senderName: String, message: String, chatId: String, type: NotificationType = .message, emoji: String? = nil) {
             self.id = UUID().uuidString
             self.senderId = senderId
             self.senderName = senderName
@@ -41,9 +48,11 @@ class ProductionNotificationManager: ObservableObject {
             self.chatId = chatId
             self.timestamp = Date()
             self.isRead = false
+            self.type = type
+            self.emoji = emoji
         }
         
-        init(id: String, senderId: String, senderName: String, message: String, chatId: String, timestamp: Date, isRead: Bool) {
+        init(id: String, senderId: String, senderName: String, message: String, chatId: String, timestamp: Date, isRead: Bool, type: NotificationType = .message, emoji: String? = nil) {
             self.id = id
             self.senderId = senderId
             self.senderName = senderName
@@ -51,6 +60,8 @@ class ProductionNotificationManager: ObservableObject {
             self.chatId = chatId
             self.timestamp = timestamp
             self.isRead = isRead
+            self.type = type
+            self.emoji = emoji
         }
     }
     
@@ -80,6 +91,29 @@ class ProductionNotificationManager: ObservableObject {
         )
         
         UNUserNotificationCenter.current().setNotificationCategories([messageCategory])
+    }
+    
+    // MARK: - Reaction Notifications
+    
+    /// Send a reaction notification to message recipients
+    func sendReactionNotification(senderId: String, senderName: String, emoji: String, messageContent: String, chatId: String, messageRecipients: [String]) {
+        print("🔔 Sending reaction notification: \(emoji) from \(senderName)")
+        
+        // Don't send notification to the sender
+        let recipients = messageRecipients.filter { $0 != senderId }
+        
+        for recipientId in recipients {
+            let notification = NotificationData(
+                senderId: senderId,
+                senderName: senderName,
+                message: "\(emoji) reacted to \"\(messageContent)\"",
+                chatId: chatId,
+                type: .reaction,
+                emoji: emoji
+            )
+            
+            storeNotificationForUser(userId: recipientId, notification: notification)
+        }
     }
     
     // MARK: - Request Notification Permission
@@ -184,8 +218,16 @@ class ProductionNotificationManager: ObservableObject {
         
         // Create notification content
         let content = UNMutableNotificationContent()
-        content.title = "📱 MessageAI"
-        content.body = "\(notification.senderName): \(notification.message)"
+        
+        // Different titles and content for reaction vs message notifications
+        if notification.type == .reaction {
+            content.title = "\(notification.emoji ?? "👍") Reaction"
+            content.body = "\(notification.senderName) reacted to your message"
+        } else {
+            content.title = "📱 MessageAI"
+            content.body = "\(notification.senderName): \(notification.message)"
+        }
+        
         content.sound = .default
         content.badge = 1
         content.categoryIdentifier = "MESSAGE_CATEGORY"

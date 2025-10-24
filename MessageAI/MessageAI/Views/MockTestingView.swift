@@ -126,6 +126,20 @@ struct MockTestingView: View {
                             }
                             .buttonStyle(TestButtonStyle())
                             .frame(maxWidth: .infinity)
+                            
+                            Button("Test Reaction Notification") {
+                                // Test reaction notification
+                                ProductionNotificationManager.shared.sendReactionNotification(
+                                    senderId: "test_sender",
+                                    senderName: "Test User",
+                                    emoji: "❤️",
+                                    messageContent: "Hello World",
+                                    chatId: "test_chat",
+                                    messageRecipients: ["current_user"]
+                                )
+                            }
+                            .buttonStyle(TestButtonStyle())
+                            .frame(maxWidth: .infinity)
                         }
                     }
                     .padding()
