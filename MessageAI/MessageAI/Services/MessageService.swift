@@ -28,6 +28,10 @@ class MessageService: ObservableObject {
         #endif
         setupConnectionListener()
         startUnreadCountListener()
+        setupAppStateObserver()
+        
+        // Load chats immediately when MessageService initializes
+        loadChats()
     }
     
     deinit {
@@ -47,6 +51,18 @@ class MessageService: ObservableObject {
             }
         }
     }
+    
+    private func setupAppStateObserver() {
+        // Listen for app becoming active to refresh unread counts
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refreshUnreadCountsOnAppActive()
+        }
+    }
+    
     
     // MARK: - Chat Management
     
@@ -72,8 +88,18 @@ class MessageService: ObservableObject {
                     
                     self?.chats = documents.compactMap { Chat(from: $0) }
                     
+                    print("📱 Loaded \(self?.chats.count ?? 0) chats for user \(currentUser.uid)")
+                    
                     // Load user names for 1-on-1 chats
                     self?.loadChatUserNames(for: self?.chats ?? [], currentUserId: currentUser.uid)
+                    
+                    // Update unread counts after chats are loaded
+                    self?.updateUnreadCount()
+                    
+                    // Load messages for all chats to get unread counts
+                    for chat in self?.chats ?? [] {
+                        self?.loadMessages(for: chat.id)
+                    }
                 }
             }
     }
@@ -140,7 +166,18 @@ class MessageService: ObservableObject {
                     
                     let messages = documents.compactMap { Message(from: $0) }
                     self?.messages[chatId] = messages
-                    self?.updateUnreadCount()
+                    
+                    // Force update unread count after loading messages
+                    print("📱 New messages received for chat \(chatId), updating unread counts...")
+                    print("📱 Messages loaded: \(messages.count) total")
+                    for message in messages {
+                        print("📱 Message: \(message.content) from \(message.senderId), readBy: \(message.readBy)")
+                    }
+                    
+                    // Update unread count on main thread
+                    DispatchQueue.main.async {
+                        self?.updateUnreadCount()
+                    }
                     
                     // Fetch user names for all unique senders
                     let uniqueSenderIds = Set(messages.map { $0.senderId })
@@ -466,39 +503,50 @@ class MessageService: ObservableObject {
         
         // First, update local cache immediately for better UX
         if var chatMessages = messages[chatId] {
+            print("📖 Updating local cache for chat \(chatId) with \(chatMessages.count) messages")
+            var updatedCount = 0
+            
             for i in 0..<chatMessages.count {
-                if chatMessages[i].senderId != currentUser.uid && chatMessages[i].deliveryStatus != .read {
+                // Only mark messages from OTHER users as read by current user
+                let isFromOtherUser = chatMessages[i].senderId != currentUser.uid
+                if isFromOtherUser && !chatMessages[i].readBy.contains(currentUser.uid) {
                     chatMessages[i].deliveryStatus = .read
-                    // Add current user to readBy array if not already present
-                    if !chatMessages[i].readBy.contains(currentUser.uid) {
-                        chatMessages[i].readBy.append(currentUser.uid)
-                    }
-                    print("📖 Marking message as read: \(chatMessages[i].content)")
+                    chatMessages[i].readBy.append(currentUser.uid)
+                    updatedCount += 1
+                    print("📖 Marking message as read: '\(chatMessages[i].content)' from \(chatMessages[i].senderId)")
                 }
             }
+            
             messages[chatId] = chatMessages
+            print("📖 Updated \(updatedCount) messages in local cache")
+            
+            // Update unread count immediately
             updateUnreadCount()
             print("✅ Updated local cache with \(chatMessages.count) messages")
         }
         
-        // Then update Firestore - get messages where current user is a recipient
+        // Then update Firestore - get ALL messages in the chat
         db.collection("messages")
             .whereField("chatId", isEqualTo: chatId)
-            .whereField("recipients", arrayContains: currentUser.uid)
             .getDocuments { [weak self] snapshot, error in
                 if let error = error {
                     print("❌ Error getting messages to mark as read: \(error.localizedDescription)")
                     return
                 }
                 
-                guard let documents = snapshot?.documents else { return }
+                guard let documents = snapshot?.documents else { 
+                    print("📖 No messages found in Firestore for chat \(chatId)")
+                    return 
+                }
+                
+                print("📖 Found \(documents.count) total messages in Firestore for chat \(chatId)")
                 
                 // Filter for unread messages from other users
                 let unreadMessages = documents.filter { document in
                     let data = document.data()
                     let senderId = data["senderId"] as? String ?? ""
-                    let deliveryStatus = data["deliveryStatus"] as? String ?? ""
-                    return senderId != currentUser.uid && deliveryStatus != "read"
+                    let readBy = data["readBy"] as? [String] ?? []
+                    return senderId != currentUser.uid && !readBy.contains(currentUser.uid)
                 }
                 
                 print("📖 Found \(unreadMessages.count) unread messages to mark as read in Firestore")
@@ -582,67 +630,162 @@ class MessageService: ObservableObject {
     // MARK: - Unread Count Management
     
     private func updateUnreadCount() {
-        guard let currentUser = Auth.auth().currentUser else { return }
+        guard let currentUser = Auth.auth().currentUser else { 
+            print("❌ No current user for unread count update")
+            return 
+        }
+        
+        print("🔄 Starting unread count update for user: \(currentUser.uid)")
+        print("🔄 Total chats loaded: \(messages.count)")
         
         var totalUnread = 0
         var chatCounts: [String: Int] = [:]
         
-        for (chatId, messageList) in messages {
-            let unreadMessages = messageList.filter { 
-                $0.senderId != currentUser.uid && $0.deliveryStatus != .read 
-            }
+            for (chatId, messageList) in messages {
+                print("🔄 Processing chat \(chatId) with \(messageList.count) messages")
+                
+                let unreadMessages = messageList.filter { message in
+                    // Only count messages from OTHER users that haven't been read by current user
+                    let isFromOtherUser = message.senderId != currentUser.uid
+                    let isNotReadByCurrentUser = !message.readBy.contains(currentUser.uid)
+                    let isUnread = isFromOtherUser && isNotReadByCurrentUser
+                    
+                    if isUnread {
+                        print("📱 Unread message: '\(message.content)' from \(message.senderId), readBy: \(message.readBy)")
+                    }
+                    
+                    return isUnread
+                }
+            
             let chatUnreadCount = unreadMessages.count
             totalUnread += chatUnreadCount
             chatCounts[chatId] = chatUnreadCount
+            
+            print("📊 Chat \(chatId): \(chatUnreadCount) unread messages out of \(messageList.count) total")
         }
         
-        print("📊 Updating unread count: \(totalUnread) total, chat counts: \(chatCounts)")
+        print("📊 Final unread count: \(totalUnread) total, chat counts: \(chatCounts)")
         
+        // Update on main thread
         DispatchQueue.main.async {
             self.unreadCount = totalUnread
             self.chatUnreadCounts = chatCounts
+            print("✅ UI updated with unread count: \(totalUnread)")
         }
     }
     
     // MARK: - Real-time Unread Count Monitoring
     
     private func startUnreadCountListener() {
+        // DISABLED: Firestore listener was causing unread count issues
+        // We now rely entirely on local cache updates from markAllMessagesAsRead
+        print("📊 Unread count listener disabled - using local cache only")
+    }
+    
+    // MARK: - Force Refresh Unread Counts
+    
+    func forceRefreshUnreadCounts() {
+        print("🔄 Force refreshing unread counts...")
+        
+        // Clear current unread counts
+        DispatchQueue.main.async {
+            self.unreadCount = 0
+            self.chatUnreadCounts = [:]
+        }
+        
+        // Reload all messages for all chats to get fresh data
+        for chatId in messages.keys {
+            loadMessages(for: chatId)
+        }
+        
+        print("✅ Unread counts force refreshed")
+    }
+    
+    func resetAllUnreadCounts() {
+        print("🔄 Resetting all unread counts...")
+        
         guard let currentUser = Auth.auth().currentUser else { return }
         
-        // Listen to all messages where current user is a recipient
-        db.collection("messages")
-            .whereField("recipients", arrayContains: currentUser.uid)
-            .addSnapshotListener { [weak self] snapshot, error in
-                if let error = error {
-                    print("❌ Error listening to unread messages: \(error.localizedDescription)")
-                    return
-                }
-                
-                guard let documents = snapshot?.documents else { return }
-                
-                // Filter for unread messages (not sent by current user and not read)
-                let unreadMessages = documents.filter { doc in
-                    let data = doc.data()
-                    let senderId = data["senderId"] as? String
-                    let deliveryStatus = data["deliveryStatus"] as? String
-                    return senderId != currentUser.uid && deliveryStatus != "read"
-                }
-                
-                // Group unread messages by chat
-                var chatCounts: [String: Int] = [:]
-                for message in unreadMessages {
-                    let data = message.data()
-                    if let chatId = data["chatId"] as? String {
-                        chatCounts[chatId, default: 0] += 1
-                    }
-                }
-                
-                DispatchQueue.main.async {
-                    self?.unreadCount = unreadMessages.count
-                    self?.chatUnreadCounts = chatCounts
-                    print("📊 Unread count updated: \(unreadMessages.count) across \(chatCounts.count) chats")
+        // Mark all messages as read in local cache
+        for (chatId, messageList) in messages {
+            var updatedMessages = messageList
+            for i in 0..<updatedMessages.count {
+                if updatedMessages[i].senderId != currentUser.uid && !updatedMessages[i].readBy.contains(currentUser.uid) {
+                    updatedMessages[i].deliveryStatus = .read
+                    updatedMessages[i].readBy.append(currentUser.uid)
                 }
             }
+            messages[chatId] = updatedMessages
+        }
+        
+        // Update unread counts
+        updateUnreadCount()
+        
+        print("✅ All unread counts reset")
+    }
+    
+    func forceUpdateUnreadCounts() {
+        print("🔄 Force updating unread counts...")
+        
+        // Force update unread counts immediately
+        DispatchQueue.main.async {
+            self.updateUnreadCount()
+        }
+        
+        print("✅ Unread counts force updated")
+    }
+    
+    func refreshUnreadCountsOnAppActive() {
+        print("🔄 App became active, refreshing unread counts...")
+        
+        // Update unread counts when app becomes active
+        updateUnreadCount()
+        
+        // Also reload messages for all active chats to ensure we have latest data
+        for chatId in messages.keys {
+            loadMessages(for: chatId)
+        }
+    }
+    
+    func forceUpdateUnreadCountsImmediately() {
+        print("🔄 Force updating unread counts immediately...")
+        
+        // Force update unread counts immediately
+        updateUnreadCount()
+        
+        print("✅ Unread counts force updated immediately")
+    }
+    
+    func simulateNewMessage(chatId: String, content: String) {
+        print("📱 Simulating new message in chat \(chatId)")
+        
+        guard let currentUser = Auth.auth().currentUser else { return }
+        
+        // Create a mock message from another user
+        let mockMessage = Message(
+            id: UUID().uuidString,
+            content: content,
+            senderId: "mock-user-123", // Different from current user
+            chatId: chatId,
+            timestamp: Date(),
+            type: .text,
+            deliveryStatus: .delivered,
+            senderName: "Mock User",
+            readBy: [], // Empty readBy array = unread
+            reactions: [:]
+        )
+        
+        // Add to local cache
+        if messages[chatId] != nil {
+            messages[chatId]?.append(mockMessage)
+        } else {
+            messages[chatId] = [mockMessage]
+        }
+        
+        // Update unread counts
+        updateUnreadCount()
+        
+        print("✅ Mock message added to chat \(chatId)")
     }
     
     // MARK: - User Management
