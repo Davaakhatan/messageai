@@ -99,6 +99,58 @@ struct MockTestingView: View {
                     .background(Color(.systemBackground))
                     .cornerRadius(12)
                     
+                    // Unread Count Debugging
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Unread Count Debug")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                        
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                            Button("Force Refresh") {
+                                messageService.forceRefreshUnreadCounts()
+                            }
+                            .buttonStyle(TestButtonStyle())
+                            
+                            Button("Reset All Unread") {
+                                messageService.resetAllUnreadCounts()
+                            }
+                            .buttonStyle(TestButtonStyle())
+                            
+                            Button("Force Update") {
+                                messageService.forceUpdateUnreadCounts()
+                            }
+                            .buttonStyle(TestButtonStyle())
+                            
+                            Button("Debug Counts") {
+                                print("🔍 Current unread counts: \(messageService.chatUnreadCounts)")
+                                print("🔍 Total unread: \(messageService.unreadCount)")
+                                print("🔍 Messages loaded: \(messageService.messages.keys)")
+                            }
+                            .buttonStyle(TestButtonStyle())
+                            
+                            Button("Simulate New Message") {
+                                // Simulate a new message in Team Backend chat
+                                messageService.simulateNewMessage(chatId: "team-backend-chat", content: "Test message from mock user")
+                            }
+                            .buttonStyle(TestButtonStyle())
+                            
+                            Button("Auto Refresh On") {
+                                // Enable automatic unread count updates
+                                messageService.refreshUnreadCountsOnAppActive()
+                            }
+                            .buttonStyle(TestButtonStyle())
+                            
+                            Button("Force Update Now") {
+                                // Force immediate unread count update
+                                messageService.forceUpdateUnreadCountsImmediately()
+                            }
+                            .buttonStyle(TestButtonStyle())
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(12)
+                    
                     // Message Reactions Testing
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Message Reactions Testing")

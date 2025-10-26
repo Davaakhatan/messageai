@@ -122,6 +122,9 @@ class AuthService: ObservableObject {
                 self?.currentUser = user
                 User.current = user
                 print("🔍 Current user set: \(self?.currentUser?.displayName ?? "nil")")
+                
+                // Reinitialize notification system for the new user
+                ProductionNotificationManager.shared.reinitializeForNewUser()
             }
         }
     }
@@ -242,6 +245,9 @@ class AuthService: ObservableObject {
     
     func signOut() {
         do {
+            // Stop notification listening before signing out
+            ProductionNotificationManager.shared.stopListeningForNotifications()
+            
             try Auth.auth().signOut()
             currentUser = nil
             User.current = nil

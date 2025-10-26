@@ -267,6 +267,29 @@ class ProductionNotificationManager: ObservableObject {
     
     // MARK: - Start Listening for Notifications
     
+    // MARK: - User Authentication Handling
+    
+    /// Stop listening for notifications (called when user signs out)
+    func stopListeningForNotifications() {
+        print("🔔 Stopping notification listener for user sign out")
+        notificationListener?.remove()
+        notificationListener = nil
+        pendingNotifications = []
+    }
+    
+    /// Reinitialize notification system for new user (called when user signs in)
+    func reinitializeForNewUser() {
+        print("🔔 Reinitializing notification system for new user")
+        
+        // Clear all notifications first
+        clearAllNotifications()
+        
+        // Start listening for the new user
+        startListeningForNotifications()
+        
+        print("✅ Notification system reinitialized for new user")
+    }
+    
     func startListeningForNotifications() {
         guard let currentUserId = Auth.auth().currentUser?.uid else { return }
         
