@@ -13,6 +13,9 @@ class MessageService: ObservableObject {
     @Published var chatUserNames: [String: String] = [:] // Cache: chatId -> displayName
     @Published var unreadCount: Int = 0
     @Published var chatUnreadCounts: [String: Int] = [:]
+    @Published var typingIndicators: [String: [TypingIndicator]] = [:] // chatId -> typing indicators
+    private var typingListeners: [String: ListenerRegistration] = [:]
+    private var typingTimers: [String: Timer] = [:] // Track typing timers per chat
 
     private let db = Firestore.firestore()
     private var messageListeners: [String: ListenerRegistration] = [:]
@@ -99,6 +102,11 @@ class MessageService: ObservableObject {
                     // Load messages for all chats to get unread counts
                     for chat in self?.chats ?? [] {
                         self?.loadMessages(for: chat.id)
+                    }
+                    
+                    // Start typing listeners for all chats
+                    for chat in self?.chats ?? [] {
+                        self?.startTypingListener(for: chat.id)
                     }
                 }
             }
@@ -942,10 +950,108 @@ class MessageService: ObservableObject {
         messageListeners.removeAll()
         chatListener?.remove()
         chatListener = nil
+        
+        // Clean up typing listeners
+        typingListeners.values.forEach { $0.remove() }
+        typingListeners.removeAll()
+        typingTimers.values.forEach { $0.invalidate() }
+        typingTimers.removeAll()
     }
     
-    func removeMessageListener(for chatId: String) {
-        messageListeners[chatId]?.remove()
-        messageListeners.removeValue(forKey: chatId)
+    // MARK: - Typing Indicators
+    
+    /// Start listening for typing indicators in a specific chat
+    func startTypingListener(for chatId: String) {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        
+        // Remove existing listener if any
+        typingListeners[chatId]?.remove()
+        
+        print("👀 Starting typing listener for chat: \(chatId)")
+        
+        typingListeners[chatId] = db.collection("typing_indicators")
+            .whereField("chatId", isEqualTo: chatId)
+            .addSnapshotListener { [weak self] snapshot, error in
+                if let error = error {
+                    print("❌ Error listening to typing indicators: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else { return }
+                
+                let typingIndicators = documents.compactMap { TypingIndicator(document: $0) }
+                    .filter { $0.userId != currentUserId && $0.isTyping } // Only show others typing
+                    .sorted { $0.timestamp > $1.timestamp }
+                
+                DispatchQueue.main.async {
+                    self?.typingIndicators[chatId] = typingIndicators
+                    print("👀 Updated typing indicators for chat \(chatId): \(typingIndicators.map { $0.userName })")
+                }
+            }
+    }
+    
+    /// Stop listening for typing indicators in a specific chat
+    func stopTypingListener(for chatId: String) {
+        typingListeners[chatId]?.remove()
+        typingListeners.removeValue(forKey: chatId)
+        typingTimers[chatId]?.invalidate()
+        typingTimers.removeValue(forKey: chatId)
+        
+        DispatchQueue.main.async {
+            self.typingIndicators.removeValue(forKey: chatId)
+        }
+        
+        print("👀 Stopped typing listener for chat: \(chatId)")
+    }
+    
+    /// Send typing indicator to Firestore
+    func sendTypingIndicator(for chatId: String, isTyping: Bool) {
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        
+        let currentUserName = userService.getUserName(for: currentUserId)
+        
+        let typingIndicator = TypingIndicator(
+            userId: currentUserId,
+            userName: currentUserName,
+            chatId: chatId,
+            isTyping: isTyping
+        )
+        
+        let documentId = "\(currentUserId)_\(chatId)"
+        
+        db.collection("typing_indicators").document(documentId).setData(typingIndicator.toDictionary()) { error in
+            if let error = error {
+                print("❌ Error sending typing indicator: \(error.localizedDescription)")
+            } else {
+                print("👀 Sent typing indicator: \(isTyping ? "typing" : "stopped") in chat \(chatId)")
+            }
+        }
+        
+        // If user stopped typing, invalidate the timer
+        if !isTyping {
+            typingTimers[chatId]?.invalidate()
+            typingTimers.removeValue(forKey: chatId)
+        }
+    }
+    
+    /// Start typing (called when user starts typing)
+    func startTyping(in chatId: String) {
+        sendTypingIndicator(for: chatId, isTyping: true)
+        
+        // Set a timer to automatically stop typing after 3 seconds of inactivity
+        typingTimers[chatId]?.invalidate()
+        typingTimers[chatId] = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
+            self?.stopTyping(in: chatId)
+        }
+    }
+    
+    /// Stop typing (called when user stops typing or sends message)
+    func stopTyping(in chatId: String) {
+        sendTypingIndicator(for: chatId, isTyping: false)
+    }
+    
+    /// Get currently typing users for a chat
+    func getTypingUsers(for chatId: String) -> [String] {
+        return typingIndicators[chatId]?.map { $0.userName } ?? []
     }
 }

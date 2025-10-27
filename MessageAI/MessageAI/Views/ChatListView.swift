@@ -145,6 +145,7 @@ struct ChatRowView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var messageService: MessageService
     @State private var isOnline = false
+    @State private var typingAnimation = false
     
     private var displayName: String {
         if chat.isGroup {
@@ -161,6 +162,24 @@ struct ChatRowView: View {
     
     private var isUnread: Bool {
         unreadCount > 0
+    }
+    
+    // Check if someone is typing in this chat
+    private var isSomeoneTyping: Bool {
+        !messageService.getTypingUsers(for: chat.id).isEmpty
+    }
+    
+    private var typingText: String {
+        let typingUsers = messageService.getTypingUsers(for: chat.id)
+        if typingUsers.isEmpty {
+            return ""
+        } else if typingUsers.count == 1 {
+            return "\(typingUsers[0]) is typing..."
+        } else if typingUsers.count == 2 {
+            return "\(typingUsers[0]) and \(typingUsers[1]) are typing..."
+        } else {
+            return "\(typingUsers.count) people are typing..."
+        }
     }
     
     private var lastMessageText: String {
@@ -229,8 +248,30 @@ struct ChatRowView: View {
                 }
                 
                 HStack {
-                    if let lastMessage = chat.lastMessage {
-                        VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        // Show typing indicator if someone is typing
+                        if isSomeoneTyping {
+                            HStack(spacing: 4) {
+                                // Animated typing dots
+                                ForEach(0..<3, id: \.self) { index in
+                                    Circle()
+                                        .fill(Color.blue)
+                                        .frame(width: 4, height: 4)
+                                        .scaleEffect(typingAnimation ? 1.2 : 0.8)
+                                        .animation(
+                                            Animation.easeInOut(duration: 0.6)
+                                                .repeatForever()
+                                                .delay(Double(index) * 0.2),
+                                            value: typingAnimation
+                                        )
+                                }
+                                
+                                Text(typingText)
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                                    .italic()
+                            }
+                        } else if let lastMessage = chat.lastMessage {
                             Text(lastMessageText)
                                 .font(.subheadline)
                                 .fontWeight(isUnread ? .medium : .regular)
@@ -244,10 +285,17 @@ struct ChatRowView: View {
                                     .foregroundColor(.blue)
                                     .fontWeight(.medium)
                             }
+                        } else {
+                            Text("No messages yet")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .italic()
                         }
-                        
-                        Spacer()
-                        
+                    }
+                    
+                    Spacer()
+                    
+                    if let lastMessage = chat.lastMessage {
                         VStack(alignment: .trailing, spacing: 4) {
                             // Unread badge
                             if unreadCount > 0 {
@@ -275,11 +323,6 @@ struct ChatRowView: View {
                                 }
                             }
                         }
-                    } else {
-                        Text("No messages yet")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .italic()
                     }
                 }
             }
@@ -294,6 +337,15 @@ struct ChatRowView: View {
             // Check online status for one-on-one chats
             if !chat.isGroup {
                 checkOnlineStatus()
+            }
+            // Start typing animation
+            typingAnimation = true
+        }
+        .onChange(of: isSomeoneTyping) { _ in
+            // Restart animation when typing state changes
+            typingAnimation = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                typingAnimation = true
             }
         }
     }

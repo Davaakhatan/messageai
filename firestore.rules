@@ -66,5 +66,15 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null; // Any authenticated user can write
     }
+    
+    // Typing indicators - readable and writable by chat participants
+    match /typing_indicators/{indicatorId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
   }
 }

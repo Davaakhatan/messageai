@@ -10,57 +10,79 @@ MessageAI is a cutting-edge iOS messaging application that integrates advanced A
 
 ## ✨ Key Features
 
-### 🤖 Proactive AI Assistant
-- **Intelligent Conversation Monitoring**: Automatically analyzes conversations to detect scheduling opportunities, action items, and important decisions
-- **Smart Suggestions**: Provides context-aware recommendations without explicit user requests
-- **Real-time Analysis**: Monitors chat patterns and suggests optimal meeting times, action items, and conversation summaries
+### 🤖 AI-Powered Team Features
+- **Project Status Analysis**: AI-generated project status reports with team insights
+- **Meeting Summaries**: Automatic generation of meeting summaries with key points and action items
+- **Decision Tracking**: Captures and tracks important decisions made during discussions
+- **Priority Detection**: Identifies and highlights urgent or important messages
+- **Team Insights**: Collaboration analytics and team performance metrics
+- **Smart Search**: Intelligent search across messages, users, chats, and AI-generated content
+- **AI Assistant Chat**: Direct interaction with AI for project assistance and insights
 
 ### 📱 Core Messaging
 - **Real-time Chat**: Instant messaging with Firebase Firestore integration
 - **Group & 1-on-1 Chats**: Support for both individual and group conversations
 - **Message Status**: Delivery and read receipts for all messages
 - **User Search**: Find users by email or display name
+- **Message Reactions**: Emoji reactions with real-time updates
+- **Offline Messaging**: Queue messages when offline, auto-send when connected
 
-### 🔄 Offline Support
-- **Message Queuing**: Automatically queues messages when offline
-- **Auto-send**: Sends queued messages when connection is restored
-- **Connection Status**: Visual indicator of network connectivity
-- **Reliable Delivery**: Ensures no messages are lost during network issues
+### 🔄 Advanced Features
+- **Dark/Light Mode**: Complete theme support with system integration
+- **Push Notifications**: Real-time notifications for messages and reactions
+- **Read Receipts**: Accurate read status tracking with user names
+- **Message Reactions**: Add emoji reactions to any message
+- **Offline Support**: Reliable message delivery with retry logic
+- **Connection Status**: Visual indicators for network connectivity
 
-### 📊 AI Insights
-- **Meeting Summaries**: Automatic generation of meeting summaries with key points and action items
-- **Action Item Detection**: Identifies and tracks tasks mentioned in conversations
-- **Decision Tracking**: Captures important decisions made during discussions
-- **Priority Messages**: Highlights urgent or important messages
-
-### 🎯 Task Management
-- **AI-Generated Tasks**: Automatically creates tasks from conversation analysis
-- **Task Integration**: Seamless integration with AI Assistant for task management
-- **Due Date Tracking**: Smart due date suggestions based on conversation context
+### 🎨 Modern UI/UX
+- **SwiftUI Design**: Modern, responsive interface
+- **Settings Management**: Comprehensive app settings and preferences
+- **Mock Testing**: Built-in testing tools for development and debugging
+- **Help & Support**: Integrated help system and support features
 
 ## 🏗️ Technical Architecture
 
 ### Frontend (iOS)
 - **SwiftUI**: Modern declarative UI framework
 - **Combine**: Reactive programming for data flow
-- **Network Framework**: Real-time connectivity monitoring
-- **UserDefaults**: Local storage for offline message queuing
+- **Firebase SDK**: Real-time database and authentication
+- **UserNotifications**: Local and remote notification handling
+- **Network Monitoring**: Real-time connectivity detection
 
 ### Backend (Firebase)
-- **Firestore**: Real-time NoSQL database
+- **Firestore**: Real-time NoSQL database with optimized queries
 - **Firebase Auth**: User authentication and management
-- **Firebase Storage**: Media file storage (future enhancement)
-- **Cloud Functions**: Server-side AI processing (future enhancement)
+- **Firebase Storage**: Media file storage support
+- **Cloud Functions**: Server-side processing capabilities
 
 ### AI Integration
-- **Proactive Monitoring**: Real-time conversation analysis
-- **Keyword Detection**: Smart pattern recognition for scheduling and action items
-- **Context Awareness**: Understanding conversation flow and context
-- **Suggestion Engine**: Intelligent recommendation system
+- **OpenAI API**: Advanced AI capabilities for content analysis
+- **Smart Search**: Intelligent content discovery and filtering
+- **Project Analysis**: AI-powered project status generation
+- **Content Summarization**: Automatic meeting and conversation summaries
 
-## 📱 Screenshots
+## 📱 Current Features Status
 
-*Screenshots will be added here*
+### ✅ Fully Implemented
+- **Real-time Messaging**: Complete chat functionality with Firebase
+- **User Authentication**: Secure login and user management
+- **Group Chats**: Multi-user conversation support
+- **Read Receipts**: Accurate read status with proper sender exclusion
+- **Message Reactions**: Emoji reactions with notifications
+- **Push Notifications**: Local and remote notification system
+- **Dark/Light Mode**: Complete theme support
+- **Settings Management**: Comprehensive app configuration
+- **Mock Testing**: Development and debugging tools
+- **AI Team Features**: Project status, meeting summaries, decisions, insights
+- **Smart Search**: Cross-content intelligent search
+- **Offline Support**: Message queuing and retry logic
+
+### 🔧 Recent Fixes
+- **Read Receipt Logic**: Fixed sender exclusion from their own message read counts
+- **Notification System**: Optimized notification delivery and display
+- **User Name Resolution**: Proper display name handling across all features
+- **UI Polish**: Modern design updates for all major views
 
 ## 🛠️ Installation & Setup
 
@@ -68,7 +90,7 @@ MessageAI is a cutting-edge iOS messaging application that integrates advanced A
 - Xcode 15.0+
 - iOS 17.0+
 - Firebase project setup
-- CocoaPods (for Firebase dependencies)
+- OpenAI API key (for AI features)
 
 ### Setup Instructions
 
@@ -85,14 +107,12 @@ MessageAI is a cutting-edge iOS messaging application that integrates advanced A
    - Download `GoogleService-Info.plist` and add to the project
    - Update Firestore security rules (see `firestore.rules`)
 
-3. **Install Dependencies**
-   ```bash
-   cd MessageAI
-   pod install
-   ```
+3. **OpenAI Configuration**
+   - Get an OpenAI API key from https://platform.openai.com/
+   - Configure the API key in the app's Team AI settings
 
 4. **Build and Run**
-   - Open `MessageAI.xcworkspace` in Xcode
+   - Open `MessageAI.xcodeproj` in Xcode
    - Select your target device or simulator
    - Build and run the project
 
@@ -107,64 +127,69 @@ MessageAI is a cutting-edge iOS messaging application that integrates advanced A
    - Deploy security rules from `firestore.rules`
    - Create required indexes for optimal performance
 
-3. **Security Rules**
+3. **Required Firestore Indexes**
    ```javascript
-   // Users can read all user data for search functionality
-   // Users can only write to their own data
-   // Chat participants can read/write messages and chat data
+   // Messages collection
+   - chatId (Ascending), timestamp (Descending)
+   - chatId (Ascending), senderId (Ascending), timestamp (Descending)
+   
+   // Chats collection  
+   - participants (Arrays), lastMessageAt (Descending)
+   
+   // Notifications collection
+   - userId (Ascending), timestamp (Descending)
    ```
 
 ## 🔧 Configuration
 
 ### Environment Variables
-- Firebase configuration is handled through `GoogleService-Info.plist`
+- Firebase configuration via `GoogleService-Info.plist`
+- OpenAI API key configuration in app settings
 - No additional environment variables required
 
-### Firestore Indexes
-The following composite indexes are required for optimal performance:
-- `messages`: `deliveryStatus` (Ascending), `timestamp` (Descending)
-- `chats`: `participants` (Arrays), `lastMessageAt` (Descending)
-- `proactiveSuggestions`: `chatId` (Ascending), `actedOn` (Ascending), `dismissed` (Ascending)
+### App Settings
+- **Theme**: Dark/Light mode toggle
+- **Notifications**: Push notification preferences
+- **Font Size**: Customizable text size
+- **Cache Management**: Clear app cache and data
+- **Account Management**: Sign out and account deletion
 
 ## 🚀 Features in Detail
 
-### Proactive AI Assistant
-The AI assistant continuously monitors conversations and provides intelligent suggestions:
+### AI Team Features
+- **Project Status**: AI-generated project analysis with team member insights
+- **Meeting Summaries**: Automatic extraction of key points and action items
+- **Decision Tracking**: Capture and organize important decisions
+- **Priority Detection**: Identify urgent messages and tasks
+- **Team Insights**: Collaboration analytics and performance metrics
+- **Smart Search**: Search across all content types with intelligent filtering
 
-- **Scheduling Detection**: Identifies when users are trying to schedule meetings
-- **Action Item Extraction**: Automatically detects and suggests action items
-- **Conversation Summaries**: Generates summaries for long conversations
-- **Smart Recommendations**: Suggests optimal meeting times and follow-up actions
-
-### Offline Message Queue
-Robust offline support ensures no messages are lost:
-
-- **Automatic Queuing**: Messages are stored locally when offline
-- **Smart Retry Logic**: Exponential backoff for failed message delivery
-- **Connection Monitoring**: Real-time network status detection
-- **Seamless Sync**: Automatic synchronization when connection is restored
-
-### Real-time Collaboration
-Enhanced collaboration features:
-
-- **Live Typing Indicators**: See when others are typing
-- **Message Status**: Delivery and read receipts
-- **User Presence**: Online/offline status indicators
+### Real-time Messaging
+- **Instant Delivery**: Real-time message synchronization
+- **Read Receipts**: Accurate read status with user names
+- **Message Reactions**: Emoji reactions with notifications
 - **Group Management**: Easy group creation and member management
+- **User Search**: Find and add users to conversations
+
+### Notification System
+- **Push Notifications**: Real-time message and reaction notifications
+- **Local Notifications**: Offline notification support
+- **Notification Categories**: Different notification types for messages and reactions
+- **Simulator Support**: Full notification testing on iOS Simulator
 
 ## 🎯 Use Cases
 
 ### Business Teams
-- **Meeting Coordination**: AI suggests optimal meeting times
-- **Action Item Tracking**: Automatic task creation from conversations
-- **Decision Documentation**: Captures and tracks important decisions
-- **Project Updates**: Smart summaries of project discussions
+- **Project Management**: AI-powered project status and insights
+- **Meeting Coordination**: Automatic meeting summaries and action items
+- **Decision Documentation**: Track and organize important decisions
+- **Team Collaboration**: Enhanced communication with AI assistance
 
-### Personal Use
-- **Smart Scheduling**: AI helps coordinate personal meetings
-- **Task Management**: Converts conversations into actionable tasks
-- **Memory Aid**: Summarizes important conversations
-- **Productivity Boost**: Reduces manual task management
+### Development Teams
+- **Code Reviews**: AI-assisted code discussion and feedback
+- **Project Planning**: AI-generated project status and recommendations
+- **Task Management**: Automatic task extraction from conversations
+- **Knowledge Sharing**: Smart search across all team communications
 
 ## 🔮 Future Enhancements
 
@@ -172,23 +197,36 @@ Enhanced collaboration features:
 - **Voice Messages**: Audio message support with transcription
 - **File Sharing**: Document and media sharing capabilities
 - **Video Calls**: Integrated video calling functionality
-- **Advanced AI**: GPT integration for more sophisticated AI features
-- **Push Notifications**: Real-time notification system
 - **Calendar Integration**: Direct calendar scheduling from AI suggestions
+- **Advanced Analytics**: Detailed usage and collaboration insights
 
 ### Technical Improvements
 - **Performance Optimization**: Enhanced query performance and caching
 - **Security Enhancements**: End-to-end encryption for messages
 - **Scalability**: Support for larger teams and organizations
-- **Analytics**: Usage analytics and insights dashboard
+- **Advanced AI**: More sophisticated AI features and integrations
+
+## 🧪 Testing
+
+### Mock Testing Features
+- **Connection Simulation**: Test offline/online scenarios
+- **Message Generation**: Create test messages and conversations
+- **Notification Testing**: Test notification delivery and display
+- **User Simulation**: Simulate different user scenarios
+- **Debug Tools**: Comprehensive debugging and testing utilities
+
+### Testing Scenarios
+- **Read Receipt Testing**: Verify accurate read status tracking
+- **Notification Testing**: Test message and reaction notifications
+- **Offline Testing**: Test message queuing and retry logic
+- **AI Feature Testing**: Test all AI-powered features and responses
 
 ## 🤝 Contributing
 
 This is a personal project developed by Davaakhatan Zorigtbaatar. For questions or collaboration opportunities, please contact:
 
-- **Email**: [Your Email]
-- **LinkedIn**: [Your LinkedIn]
 - **GitHub**: [@Davaakhatan](https://github.com/Davaakhatan)
+- **Project Repository**: https://github.com/Davaakhatan/messageai
 
 ## 📄 License
 
@@ -198,6 +236,7 @@ This project is developed as part of the Gauntlet AI Cohort program. All rights 
 
 - **Gauntlet AI**: For the comprehensive AI development program
 - **Firebase**: For providing robust backend infrastructure
+- **OpenAI**: For advanced AI capabilities and integration
 - **SwiftUI Community**: For excellent documentation and examples
 - **iOS Development Community**: For continuous learning and inspiration
 
@@ -206,3 +245,12 @@ This project is developed as part of the Gauntlet AI Cohort program. All rights 
 **Developed with ❤️ by Davaakhatan Zorigtbaatar**
 
 *Building the future of intelligent communication*
+
+## 📊 Project Status
+
+**Current Version**: 1.0.0  
+**Last Updated**: October 2024  
+**Status**: Active Development  
+**Platform**: iOS 17.0+  
+**Language**: Swift 5.9+  
+**Framework**: SwiftUI + Firebase

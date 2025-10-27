@@ -25,41 +25,9 @@ struct ChatView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Messages List
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(messages) { message in
-                            MessageBubbleView(
-                                message: message,
-                                isFromCurrentUser: message.senderId == authService.currentUser?.id,
-                                isGroupChat: chat.isGroup,
-                                chatParticipants: chat.participants
-                            )
-                            .id(message.id)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                }
-                .onChange(of: messages.count) { _ in
-                    if let lastMessage = messages.last {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                        }
-                    }
-                }
-                .onAppear {
-                    // Messages will be marked as read in the main onAppear
-                }
-            }
-            
-            // Message Input
-            MessageInputView(
-                messageText: $messageText,
-                onSend: sendMessage,
-                onImageTap: { showingImagePicker = true }
-            )
+            messagesScrollView
+            typingIndicatorView
+            messageInputView
         }
         .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
@@ -80,6 +48,9 @@ struct ChatView: View {
         .onAppear {
             messageService.loadMessages(for: chat.id)
             
+            // Start listening for typing indicators
+            messageService.startTypingListener(for: chat.id)
+            
             // Fetch user names for all chat participants
             UserService.shared.fetchUsers(userIds: chat.participants)
             
@@ -97,7 +68,7 @@ struct ChatView: View {
             ProductionNotificationManager.shared.clearSystemNotificationsForChat(chat.id)
         }
         .onDisappear {
-            messageService.removeMessageListener(for: chat.id)
+            messageService.stopTypingListener(for: chat.id)
         }
         .sheet(isPresented: $showingImagePicker) {
             CustomImagePicker(selectedImage: $selectedImage)
@@ -117,6 +88,50 @@ struct ChatView: View {
                 sendImageMessage(image)
             }
         }
+    }
+    
+    private var messagesScrollView: some View {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(messages) { message in
+                            MessageBubbleView(
+                                message: message,
+                            isFromCurrentUser: message.senderId == authService.currentUser?.id,
+                            isGroupChat: chat.isGroup,
+                            chatParticipants: chat.participants
+                            )
+                            .id(message.id)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                }
+                .onChange(of: messages.count) { _ in
+                    if let lastMessage = messages.last {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                        }
+                    }
+                }
+            .onAppear {
+                // Messages will be marked as read in the main onAppear
+            }
+        }
+    }
+    
+    private var typingIndicatorView: some View {
+        TypingIndicatorView(chatId: chat.id)
+            .environmentObject(messageService)
+    }
+    
+    private var messageInputView: some View {
+            MessageInputView(
+                messageText: $messageText,
+            chatId: chat.id,
+                onSend: sendMessage,
+                onImageTap: { showingImagePicker = true }
+            )
     }
     
     private func sendMessage() {
@@ -273,8 +288,8 @@ struct MessageBubbleView: View {
                         if showingTimestamp && !message.readBy.isEmpty {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text("Read by:")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                                 
                                 ForEach(readByNames, id: \.self) { readerName in
                                     Text("• \(readerName)")
@@ -288,7 +303,7 @@ struct MessageBubbleView: View {
                             .cornerRadius(6)
                         }
                     }
-                    .padding(.horizontal, 4)
+                        .padding(.horizontal, 4)
                 }
                 
                 // Timestamp
@@ -325,7 +340,7 @@ struct MessageBubbleView: View {
                                 }
                             } else if message.deliveryStatus == .sending {
                                 Text("Sending...")
-                                    .font(.caption2)
+                            .font(.caption2)
                                     .foregroundColor(.blue)
                             }
                         }
@@ -376,9 +391,12 @@ struct MessageBubbleView: View {
 
 struct MessageInputView: View {
     @Binding var messageText: String
+    let chatId: String
     let onSend: () -> Void
     let onImageTap: () -> Void
+    @EnvironmentObject var messageService: MessageService
     @State private var isExpanded = false
+    @State private var typingTimer: Timer?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -424,6 +442,9 @@ struct MessageInputView: View {
                     TextField("Message", text: $messageText, axis: .vertical)
                         .lineLimit(1...4)
                         .keyboardType(.default)
+                        .onChange(of: messageText) { _ in
+                            handleTyping()
+                        }
                         .onTapGesture {
                             if !isExpanded {
                                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -433,7 +454,7 @@ struct MessageInputView: View {
                         }
                     
                     if !messageText.isEmpty {
-                        Button(action: onSend) {
+                        Button(action: sendMessage) {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(.title2)
                                 .foregroundColor(.blue)
@@ -450,6 +471,29 @@ struct MessageInputView: View {
             .background(Color(.systemBackground))
         }
         .animation(.easeInOut(duration: 0.2), value: isExpanded)
+        .onDisappear {
+            // Stop typing when view disappears
+            messageService.stopTyping(in: chatId)
+            typingTimer?.invalidate()
+        }
+    }
+    
+    private func handleTyping() {
+        // Start typing if user is typing
+        if !messageText.isEmpty {
+            messageService.startTyping(in: chatId)
+        } else {
+            // Stop typing if message is empty
+            messageService.stopTyping(in: chatId)
+            typingTimer?.invalidate()
+        }
+    }
+    
+    private func sendMessage() {
+        // Stop typing before sending
+        messageService.stopTyping(in: chatId)
+        typingTimer?.invalidate()
+        onSend()
     }
 }
 

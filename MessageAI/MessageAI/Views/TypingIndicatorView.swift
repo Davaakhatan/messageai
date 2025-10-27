@@ -1,65 +1,63 @@
 import SwiftUI
 
 struct TypingIndicatorView: View {
-    @State private var animationOffset: CGFloat = 0
+    let chatId: String
+    @EnvironmentObject var messageService: MessageService
     
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<3) { index in
-                Circle()
-                    .fill(Color.gray)
-                    .frame(width: 8, height: 8)
-                    .offset(y: animationOffset)
-                    .animation(
-                        Animation.easeInOut(duration: 0.6)
-                            .repeatForever()
-                            .delay(Double(index) * 0.2),
-                        value: animationOffset
-                    )
-            }
-        }
-        .onAppear {
-            animationOffset = -4
-        }
+    private var typingUsers: [String] {
+        messageService.getTypingUsers(for: chatId)
     }
-}
-
-struct TypingBubbleView: View {
-    let senderName: String
     
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(senderName)
+        if !typingUsers.isEmpty {
+            HStack {
+                // Animated typing dots
+                HStack(spacing: 4) {
+                    ForEach(0..<3, id: \.self) { index in
+                        Circle()
+                            .fill(Color.gray)
+                            .frame(width: 6, height: 6)
+                            .scaleEffect(typingAnimation ? 1.2 : 0.8)
+                            .animation(
+                                Animation.easeInOut(duration: 0.6)
+                                    .repeatForever()
+                                    .delay(Double(index) * 0.2),
+                                value: typingAnimation
+                            )
+                    }
+                }
+                
+                // Typing text
+                Text(typingText)
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .padding(.leading, 16)
+                    .padding(.leading, 4)
                 
-                HStack(spacing: 8) {
-                    TypingIndicatorView()
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 18)
-                                .fill(Color.gray.opacity(0.2))
-                        )
-                    
-                    Spacer()
-                }
+                Spacer()
             }
-            
-            Spacer()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(.systemBackground))
+            .onAppear {
+                typingAnimation = true
+            }
         }
-        .padding(.vertical, 4)
+    }
+    
+    @State private var typingAnimation = false
+    
+    private var typingText: String {
+        if typingUsers.count == 1 {
+            return "\(typingUsers[0]) is typing..."
+        } else if typingUsers.count == 2 {
+            return "\(typingUsers[0]) and \(typingUsers[1]) are typing..."
+        } else {
+            return "\(typingUsers.count) people are typing..."
+        }
     }
 }
 
 #Preview {
-    VStack {
-        TypingIndicatorView()
-            .padding()
-        
-        TypingBubbleView(senderName: "John")
-            .padding()
-    }
+    TypingIndicatorView(chatId: "test-chat")
+        .environmentObject(MessageService())
 }
