@@ -173,7 +173,31 @@ class MessageService: ObservableObject {
                     guard let documents = snapshot?.documents else { return }
                     
                     let messages = documents.compactMap { Message(from: $0) }
-                    self?.messages[chatId] = messages
+                    
+                    // Update message status based on readBy array for messages sent by current user
+                    if let currentUser = Auth.auth().currentUser {
+                        let updatedMessages = messages.map { message -> Message in
+                            // If this message was sent by the current user
+                            if message.senderId == currentUser.uid {
+                                // Check if any recipient has read it
+                                if !message.readBy.isEmpty && message.deliveryStatus != .read {
+                                    var updatedMessage = message
+                                    updatedMessage.deliveryStatus = .read
+                                    print("✅ Updating message status to 'read' for message: '\(message.content)'")
+                                    return updatedMessage
+                                } else if message.readBy.isEmpty && message.deliveryStatus == .read {
+                                    var updatedMessage = message
+                                    updatedMessage.deliveryStatus = .sent
+                                    print("⚠️ Resetting message status to 'sent' for message: '\(message.content)'")
+                                    return updatedMessage
+                                }
+                            }
+                            return message
+                        }
+                        self?.messages[chatId] = updatedMessages
+                    } else {
+                        self?.messages[chatId] = messages
+                    }
                     
                     // Force update unread count after loading messages
                     print("📱 New messages received for chat \(chatId), updating unread counts...")
