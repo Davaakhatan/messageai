@@ -295,7 +295,13 @@ class MessageService: ObservableObject {
     private var isOfflineMode = false
     
     func setOfflineMode(_ isOffline: Bool) {
+        let wasOffline = isOfflineMode
         isOfflineMode = isOffline
+        
+        // If user just came back online, retry all failed messages
+        if wasOffline && !isOffline {
+            retryAllFailedMessages()
+        }
     }
     
     private func isNetworkAvailable() -> Bool {
@@ -323,6 +329,21 @@ class MessageService: ObservableObject {
                     self?.markMessageAsFailed(messageId: message.id, chatId: message.chatId)
                 } else {
                     self?.updateMessageDeliveryStatus(messageId: message.id, status: .sent)
+                    self?.updateChatLastMessage(chatId: message.chatId, message: message)
+                    self?.sendNotificationToRecipients(message: message)
+                }
+            }
+        }
+    }
+    
+    private func retryAllFailedMessages() {
+        print("🔄 Retrying all failed messages...")
+        
+        for (chatId, messageList) in messages {
+            for (index, message) in messageList.enumerated() {
+                if message.deliveryStatus == .failed {
+                    print("🔄 Retrying message '\(message.content)' in chat \(chatId)")
+                    retryFailedMessage(messageId: message.id, chatId: chatId)
                 }
             }
         }
